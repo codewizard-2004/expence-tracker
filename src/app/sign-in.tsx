@@ -1,3 +1,4 @@
+import Sparkles from '@/components/Sparkles';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -27,14 +28,7 @@ export default function SignInScreen() {
         className="flex-1"
       >
         {/* Background Sparkles */}
-        <View className="absolute inset-0 pointer-events-none overflow-hidden">
-          <View className="absolute top-12 -right-4 rotate-12">
-            <MaterialIcons name="auto-awesome" size={120} color="#e8dfee" />
-          </View>
-          <View className="absolute bottom-12 -left-4 -rotate-12">
-            <MaterialIcons name="auto-awesome" size={100} color="#e8dfee" />
-          </View>
-        </View>
+        <Sparkles />
 
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 24 }}

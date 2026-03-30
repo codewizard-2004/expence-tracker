@@ -4,8 +4,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import CityImage from "@/assets/images/city.png";
 
 const OBJECTIVES = [
   {
@@ -101,24 +103,20 @@ export default function TripDetailsScreen() {
           <View className="px-6">
             {/* Hero Trip Card */}
             <View
-              className="rounded-[24px] overflow-hidden mb-8"
+              className="relative rounded-[24px] overflow-hidden mb-8"
               style={{ minHeight: 220 }}
             >
               <Image
-                source={{
-                  uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCHmQ0Z6i6v8M4xX7Mv0JzG9l6n5h1k8u9L7v0n3f4i2c5b6a7a1b3c4d5e6f7g8h9i0j',
-                }}
-                className="absolute inset-0 w-full h-full"
+                source={CityImage}
+                style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
               />
-              <LinearGradient
-                colors={[
-                  'rgba(99,14,212,0.6)',
-                  'rgba(124,58,237,0.85)',
-                  'rgba(99,14,212,0.95)',
-                ]}
-                className="absolute inset-0"
+              <BlurView
+                intensity={40}
+                tint="dark"
+                style={StyleSheet.absoluteFillObject}
               />
+              <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.2)' }]} />
               <View className="p-6 pt-8 z-10 items-center justify-center" style={{ minHeight: 220 }}>
                 <View className="flex-row items-center gap-1 mb-3">
                   <MaterialIcons name="location-on" size={14} color="rgba(255,255,255,0.85)" />
@@ -127,7 +125,7 @@ export default function TripDetailsScreen() {
                   </Text>
                 </View>
                 <Text className="font-headline font-extrabold text-3xl text-white text-center mb-4">
-                  Q4 Strategy{'\n'}Summit
+                  Q4 Strategy{`\n`}Summit
                 </Text>
                 <View className="flex-row items-center gap-6">
                   <View className="flex-row items-center gap-1.5">
