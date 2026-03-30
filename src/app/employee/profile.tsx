@@ -12,9 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // --- Pie Chart Data ---
 const EXPENSE_DATA = [
-  { label: 'Travel', subtitle: 'Flights & Trains', amount: 1840, color: '#630ED4', pct: 53 },
-  { label: 'Meals', subtitle: 'Dining & Catering', amount: 942, color: '#FE6A34', pct: 27 },
-  { label: 'Lodging', subtitle: 'Hotel & Housing', amount: 700, color: '#7b7487', pct: 20 },
+  { label: 'Travel', icon: 'flight', subtitle: 'Flights & Trains', amount: 1840, color: '#630ED4', pct: 53 },
+  { label: 'Meals', icon: 'restaurant', subtitle: 'Dining & Catering', amount: 942, color: '#FE6A34', pct: 27 },
+  { label: 'Lodging', icon: 'hotel', subtitle: 'Hotel & Housing', amount: 700, color: '#7b7487', pct: 20 },
 ];
 
 const TOTAL_SPEND = 3482;

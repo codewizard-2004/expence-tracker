@@ -1,5 +1,7 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import DonutChart from "./DonutChart";
+
 
 const AnalyticsCard = ({ EXPENSE_DATA, TOTAL_SPEND }: { EXPENSE_DATA: any, TOTAL_SPEND: number }) => {
     return (
@@ -18,10 +20,7 @@ const AnalyticsCard = ({ EXPENSE_DATA, TOTAL_SPEND }: { EXPENSE_DATA: any, TOTAL
                             className="w-10 h-10 rounded-xl items-center justify-center"
                             style={{ backgroundColor: cat.color + '18' }}
                         >
-                            <View
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: cat.color }}
-                            />
+                            <MaterialIcons name={cat.icon} size={20} color={cat.color} />
                         </View>
                         <View className="flex-1">
                             <Text className="font-body font-bold text-sm text-on-surface">
