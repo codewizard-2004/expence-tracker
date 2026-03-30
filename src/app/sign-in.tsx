@@ -173,7 +173,7 @@ export default function SignInScreen() {
 
             {/* Button */}
             <View className="pt-4">
-              <TouchableOpacity className="shadow-xl rounded-xl overflow-hidden">
+              <TouchableOpacity className="shadow-xl rounded-xl overflow-hidden" onPress={() => router.replace(`/${role}` as any)}>
                 <LinearGradient
                   colors={['#630ED4', '#7C3AED']}
                   start={{ x: 0, y: 0 }}
