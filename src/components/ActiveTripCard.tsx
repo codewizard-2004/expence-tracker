@@ -26,7 +26,7 @@ const ActiveTripCard = ({ image, title, location, budget, spent, currency, start
         <TouchableOpacity
             activeOpacity={0.9}
             className="relative rounded-3xl overflow-hidden shadow-lg shadow-black/10 h-[280px] border border-outline-variant/20"
-            onPress={() => router.push('/trip-details' as any)}>
+            onPress={() => router.push('/employee/trip-details' as any)}>
             <Image
                 source={image}
                 style={StyleSheet.absoluteFillObject}

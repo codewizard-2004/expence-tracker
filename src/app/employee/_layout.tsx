@@ -80,6 +80,23 @@ const _layout = () => {
           ),
         }}
       />
+      <Tabs.Screen
+        name="trip-details"
+        options={{
+          href: null,
+          title: 'Trip Details',
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="receipt-processing"
+        options={{
+          href: null,
+          title: 'Processing...',
+          headerShown: false,
+          tabBarStyle: { display: 'none' }
+        }}
+      />
     </Tabs>
   );
 };
