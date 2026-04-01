@@ -31,6 +31,22 @@ export default function TripDetailsScreen() {
   const [receipts, setReceipts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchReceipts = async () => {
+    if (!session?.user || !id) return;
+    try {
+      const { data, error } = await supabase
+        .from('TRIP_RECEIPTS')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('trip_id', id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (data) setReceipts(data);
+    } catch (e) {
+      console.error('Error refreshing receipts:', e);
+    }
+  };
+
   useEffect(() => {
     if (!session?.user || !id) {
        if (!id) setLoading(false);
@@ -205,7 +221,11 @@ export default function TripDetailsScreen() {
         ) : (
           /* Upload Receipts Tab Content */
           <View className="px-6">
-            <FileUpload />
+            <FileUpload
+              tripId={id as string}
+              userId={session?.user?.id ?? ''}
+              onUploadSuccess={fetchReceipts}
+            />
 
             {/* Recent Receipts */}
             <View className="mb-6">

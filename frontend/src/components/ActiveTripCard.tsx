@@ -19,15 +19,17 @@ type ActiveTripCardProps = {
     startDate: string;
     endDate: string;
     currency: string;
+    destination?: string;
 }
 
-const ActiveTripCard = ({ id, image, title, location, budget, spent, currency, startDate, endDate, }: ActiveTripCardProps) => {
+const ActiveTripCard = ({ id, image, title, location, budget, spent, currency, startDate, endDate, destination }: ActiveTripCardProps) => {
     const router = useRouter();
+    const target = destination ?? '/employee/trip-details';
     return (
         <TouchableOpacity
             activeOpacity={0.9}
             className="relative rounded-3xl overflow-hidden shadow-lg shadow-black/10 h-[280px] border border-outline-variant/20"
-            onPress={() => id ? router.push({ pathname: '/employee/trip-details', params: { id } } as any) : router.push('/employee/trip-details' as any)}>
+            onPress={() => id ? router.push({ pathname: target, params: { id } } as any) : router.push(target as any)}>
             <Image
                 source={image}
                 style={StyleSheet.absoluteFillObject}

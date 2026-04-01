@@ -1,14 +1,27 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import { File as FSFile } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { supabase } from '../lib/supabase';
 
-const FileUpload = () => {
-  const router = useRouter();
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+interface SelectedFile {
+  uri: string;
+  name: string;
+  mimeType: string;
+}
+
+interface FileUploadProps {
+  tripId: string;
+  userId: string;
+  onUploadSuccess?: () => void;
+}
+
+const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const pickDocument = async () => {
     try {
@@ -17,7 +30,12 @@ const FileUpload = () => {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedFileName(result.assets[0].name);
+        const asset = result.assets[0];
+        setSelectedFile({
+          uri: asset.uri,
+          name: asset.name,
+          mimeType: asset.mimeType || 'application/octet-stream',
+        });
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -36,12 +54,17 @@ const FileUpload = () => {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 1,
+        quality: 0.85,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const fileName = result.assets[0].fileName || result.assets[0].uri.split('/').pop() || 'photo.jpg';
-        setSelectedFileName(fileName);
+        const asset = result.assets[0];
+        const fileName = asset.fileName || asset.uri.split('/').pop() || 'photo.jpg';
+        setSelectedFile({
+          uri: asset.uri,
+          name: fileName,
+          mimeType: 'image/jpeg',
+        });
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -62,20 +85,68 @@ const FileUpload = () => {
     );
   };
 
-  const sendToBackend = () => {
-    if (!selectedFileName) {
+  const handleSubmit = async () => {
+    if (!selectedFile) {
       Alert.alert('No File Selected', 'Please upload or scan a receipt first.');
       return;
     }
-    
-    // Navigate to the processing screen, passing the filename
-    router.push({
-      pathname: '/employee/receipt-processing',
-      params: { file: selectedFileName }
-    });
-    
-    // Optionally clear it out here or rely on component unmount
-    setSelectedFileName(null);
+
+    setUploading(true);
+    try {
+      // 1. Build a unique storage path
+      const ext = selectedFile.name.split('.').pop() || 'jpg';
+      const storagePath = `${userId}/${tripId}/${Date.now()}_${selectedFile.name}`;
+
+      // 2. Read file bytes via expo-file-system v2 (avoids fetch on local URIs in RN)
+      const fsFile = new FSFile(selectedFile.uri);
+      const arrayBuffer = await fsFile.arrayBuffer();
+
+      const { error: storageError } = await supabase.storage
+        .from('receipts')
+        .upload(storagePath, arrayBuffer, {
+          contentType: selectedFile.mimeType,
+          upsert: false,
+        });
+
+      if (storageError) throw storageError;
+
+      // 3. Get the public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(storagePath);
+
+      const receiptUrl = publicUrlData?.publicUrl ?? null;
+
+      // 4. Insert into TRIP_RECEIPTS — AI-generated columns are NULL for now
+      const { error: dbError } = await supabase
+        .from('TRIP_RECEIPTS')
+        .insert({
+          trip_id: tripId,
+          user_id: userId,
+          url: receiptUrl,
+          // AI-generated columns — will be filled by the backend later
+          merchant_name: null,
+          merchant_location: null,
+          amount: null,
+          currency: null,
+          category: null,
+          receipt_date: null,
+          description: null,
+          status: null,
+          ai_reason: null,
+        });
+
+      if (dbError) throw dbError;
+
+      Alert.alert('Success', 'Receipt uploaded successfully!');
+      setSelectedFile(null);
+      onUploadSuccess?.();
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Upload Failed', error?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -83,6 +154,7 @@ const FileUpload = () => {
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={handleSelectFile}
+        disabled={uploading}
         className="w-20 h-20 rounded-full bg-surface-container-high items-center justify-center mb-6"
       >
         <MaterialIcons name="cloud-upload" size={40} color="#630ED4" />
@@ -94,7 +166,7 @@ const FileUpload = () => {
         Tap the cloud to upload a document or take a photo of your receipt.
       </Text>
 
-      {selectedFileName && (
+      {selectedFile && (
         <View className="flex-row items-center bg-surface-container rounded-2xl p-3 mb-6 shadow-sm border border-outline-variant/30">
           <MaterialIcons name="insert-drive-file" size={20} color="#630ED4" />
           <Text
@@ -102,17 +174,19 @@ const FileUpload = () => {
             numberOfLines={1}
             ellipsizeMode="middle"
           >
-            {selectedFileName}
+            {selectedFile.name}
           </Text>
-          <TouchableOpacity onPress={() => setSelectedFileName(null)}>
+          <TouchableOpacity onPress={() => setSelectedFile(null)} disabled={uploading}>
             <MaterialIcons name="close" size={20} color="#AB3500" />
           </TouchableOpacity>
         </View>
       )}
 
       <TouchableOpacity
-        onPress={sendToBackend}
+        onPress={handleSubmit}
+        disabled={uploading}
         className="rounded-[24px] overflow-hidden shadow-lg shadow-primary/20 w-full"
+        style={{ opacity: uploading ? 0.7 : 1 }}
       >
         <LinearGradient
           colors={['#630ED4', '#7C3AED']}
@@ -121,10 +195,21 @@ const FileUpload = () => {
           className="flex-row items-center justify-center gap-3 py-4"
           style={{ borderRadius: 24 }}
         >
-          <MaterialIcons name="send" size={22} color="white" />
-          <Text className="text-white font-headline font-bold text-base">
-            Submit Receipt
-          </Text>
+          {uploading ? (
+            <>
+              <ActivityIndicator size="small" color="white" />
+              <Text className="text-white font-headline font-bold text-base">
+                Uploading…
+              </Text>
+            </>
+          ) : (
+            <>
+              <MaterialIcons name="send" size={22} color="white" />
+              <Text className="text-white font-headline font-bold text-base">
+                Submit Receipt
+              </Text>
+            </>
+          )}
         </LinearGradient>
       </TouchableOpacity>
     </View>
