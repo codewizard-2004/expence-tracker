@@ -6,24 +6,91 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// --- Pie Chart Data ---
-const EXPENSE_DATA = [
-  { label: 'Travel', icon: 'flight', subtitle: 'Flights & Trains', amount: 1840, color: '#630ED4', pct: 53 },
-  { label: 'Meals', icon: 'restaurant', subtitle: 'Dining & Catering', amount: 942, color: '#FE6A34', pct: 27 },
-  { label: 'Lodging', icon: 'hotel', subtitle: 'Hotel & Housing', amount: 700, color: '#7b7487', pct: 20 },
-];
-
-const TOTAL_SPEND = 3482;
-
-
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { session, userProfile, signOut } = useAuth();
+  const [expenseData, setExpenseData] = useState<any[]>([]);
+  const [totalSpend, setTotalSpend] = useState<number>(0);
+  const [approvalStats, setApprovalStats] = useState({ total: 0, approvedRaw: 0, disapprovedRaw: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const fetchAnalytics = async () => {
+      try {
+        const { data: receipts, error } = await supabase
+          .from('TRIP_RECEIPTS')
+          .select('*')
+          .eq('user_id', session.user.id);
+
+        if (error) throw error;
+        
+        let total = 0;
+        let foodAmount = 0;
+        let travelAmount = 0;
+        let accomAmount = 0;
+        
+        let appCount = 0;
+        let rejCount = 0;
+
+        (receipts || []).forEach(r => {
+          const amt = Number(r.amount) || 0;
+          total += amt;
+          
+          const cat = r.category?.toLowerCase();
+          if (cat === 'food') foodAmount += amt;
+          else if (cat === 'travel') travelAmount += amt;
+          else if (cat === 'accommodation') accomAmount += amt;
+          
+          if (r.status === 'approved') appCount++;
+          else if (r.status === 'rejected') rejCount++;
+        });
+
+        setTotalSpend(total);
+        setApprovalStats({ 
+          total: receipts?.length || 0, 
+          approvedRaw: appCount, 
+          disapprovedRaw: rejCount 
+        });
+
+        if (total > 0) {
+          setExpenseData([
+            { label: 'Travel', icon: 'flight', subtitle: 'Flights & Trains', amount: travelAmount, color: '#630ED4', pct: Math.round((travelAmount / total) * 100) },
+            { label: 'Meals', icon: 'restaurant', subtitle: 'Dining & Catering', amount: foodAmount, color: '#FE6A34', pct: Math.round((foodAmount / total) * 100) },
+            { label: 'Lodging', icon: 'hotel', subtitle: 'Hotel & Housing', amount: accomAmount, color: '#7b7487', pct: Math.round((accomAmount / total) * 100) },
+          ].sort((a, b) => b.amount - a.amount));
+        } else {
+          setExpenseData([]);
+        }
+      } catch (e) {
+        console.error("Error fetching profile analytics:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAnalytics();
+  }, [session]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-surface items-center justify-center">
+        <ActivityIndicator size="large" color="#630ED4" />
+      </View>
+    );
+  }
+
+  const decidedCount = approvalStats.approvedRaw + approvalStats.disapprovedRaw;
+  const approvedPct = decidedCount > 0 ? Math.round((approvalStats.approvedRaw / decidedCount) * 100) : 0;
+  const disapprovedPct = decidedCount > 0 ? Math.round((approvalStats.disapprovedRaw / decidedCount) * 100) : 0;
 
   return (
     <View className="flex-1 bg-surface pt-8">
@@ -52,7 +119,7 @@ export default function ProfileScreen() {
               ]
             }} className="shadow-lg relative bg-primary-container">
               <Image
-                source={EmployeeImage}
+                source={userProfile?.logo ? { uri: userProfile.logo } : EmployeeImage}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
               />
@@ -65,10 +132,10 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           <Text className="font-headline font-extrabold text-2xl text-on-surface mb-1">
-            John Doe
+            {userProfile?.name || 'Employee Profile'}
           </Text>
           <Text className="font-body font-semibold text-sm text-primary mb-3">
-            Senior Consultant
+            {userProfile?.rank || 'Staff'}
           </Text>
         </View>
 
@@ -85,7 +152,15 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <AnalyticsCard EXPENSE_DATA={EXPENSE_DATA} TOTAL_SPEND={TOTAL_SPEND} />
+          {expenseData.length > 0 ? (
+            <AnalyticsCard EXPENSE_DATA={expenseData} TOTAL_SPEND={totalSpend} />
+          ) : (
+            <View className="items-center justify-center py-10 bg-surface-container-low rounded-[32px] border border-outline-variant/30">
+              <MaterialIcons name="insights" size={40} color="#7b748780" className="mb-3" />
+              <Text className="text-on-surface-variant font-medium">No recorded expense analytics.</Text>
+              <Text className="text-outline-variant text-[11px] mt-1">Start uploading receipts to see insights!</Text>
+            </View>
+          )}
         </View>
 
         {/* Approval Status */}
@@ -96,7 +171,7 @@ export default function ProfileScreen() {
             </Text>
             <View className="items-end">
               <Text className="font-label text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">
-                Total: 142
+                Total: {approvalStats.total}
               </Text>
               <Text className="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">
                 Expenses
@@ -105,7 +180,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Progress Bar */}
-          <ProgressBar approved={82} disapproved={18} />
+          <ProgressBar approved={approvedPct} disapproved={disapprovedPct} />
         </View>
 
         {/* Account Settings */}
@@ -116,7 +191,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             className="flex-row items-center bg-surface-container-low rounded-2xl p-4 gap-4"
             activeOpacity={0.8}
-            onPress={() => router.replace('/sign-in')}
+            onPress={signOut}
           >
             <View className="w-10 h-10 rounded-xl bg-error-container/30 items-center justify-center">
               <MaterialIcons name="logout" size={20} color="#BA1A1A" />

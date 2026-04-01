@@ -6,22 +6,81 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// --- Pie Chart Data for Auditor ---
-const AUDIT_DATA = [
-  { label: 'Approved', icon: 'check-circle', subtitle: 'Auto & Manual', amount: 840, color: '#630ED4', pct: 65 },
-  { label: 'Flagged', icon: 'warning', subtitle: 'Lumina Checks', amount: 320, color: '#FE6A34', pct: 25 },
-  { label: 'Rejected', icon: 'cancel', subtitle: 'Policy Violation', amount: 130, color: '#BA1A1A', pct: 10 },
-];
-
-const TOTAL_AUDITS = 1290;
+import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 
 export default function AuditorProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { session, userProfile, signOut } = useAuth();
+  const [expenseData, setExpenseData] = useState<any[]>([]);
+  const [totalAudits, setTotalAudits] = useState<number>(0);
+  const [approvalStats, setApprovalStats] = useState({ total: 0, approvedRaw: 0, disapprovedRaw: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const fetchAnalytics = async () => {
+      try {
+        const { data: receipts, error } = await supabase
+          .from('TRIP_RECEIPTS')
+          .select('*');
+
+        if (error) throw error;
+        
+        const count = receipts?.length || 0;
+        let appCount = 0;
+        let rejCount = 0;
+        let flaggedCount = 0;
+
+        (receipts || []).forEach(r => {
+          if (r.status === 'approved') appCount++;
+          else if (r.status === 'rejected') rejCount++;
+          else flaggedCount++; // Appealed or null essentially means manual/flagged
+        });
+
+        setTotalAudits(count);
+        
+        setApprovalStats({ 
+          total: count, 
+          approvedRaw: appCount + rejCount, 
+          disapprovedRaw: flaggedCount 
+        });
+
+        if (count > 0) {
+          setExpenseData([
+            { label: 'Approved', icon: 'check-circle', subtitle: 'Auto & Manual', amount: appCount, color: '#630ED4', pct: Math.round((appCount / count) * 100) },
+            { label: 'Flagged', icon: 'warning', subtitle: 'Lumina Checks', amount: flaggedCount, color: '#FE6A34', pct: Math.round((flaggedCount / count) * 100) },
+            { label: 'Rejected', icon: 'cancel', subtitle: 'Policy Violation', amount: rejCount, color: '#BA1A1A', pct: Math.round((rejCount / count) * 100) },
+          ].sort((a, b) => b.amount - a.amount));
+        } else {
+          setExpenseData([]);
+        }
+      } catch (e) {
+        console.error("Error fetching auditor analytics:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAnalytics();
+  }, [session]);
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-surface items-center justify-center">
+        <ActivityIndicator size="large" color="#630ED4" />
+      </View>
+    );
+  }
+
+  const decidedCount = approvalStats.approvedRaw + approvalStats.disapprovedRaw;
+  const approvedPct = decidedCount > 0 ? Math.round((approvalStats.approvedRaw / decidedCount) * 100) : 0;
+  const disapprovedPct = decidedCount > 0 ? Math.round((approvalStats.disapprovedRaw / decidedCount) * 100) : 0;
 
   return (
     <View className="flex-1 bg-surface pt-8">
@@ -50,7 +109,7 @@ export default function AuditorProfileScreen() {
               ]
             }} className="shadow-lg relative bg-primary-container">
               <Image
-                source={EmployeeImage}
+                source={userProfile?.logo ? { uri: userProfile.logo } : EmployeeImage}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
               />
@@ -63,10 +122,10 @@ export default function AuditorProfileScreen() {
             </TouchableOpacity>
           </View>
           <Text className="font-headline font-extrabold text-2xl text-on-surface mb-1 tracking-tight">
-            Sarah Auditor
+            {userProfile?.name || 'Auditor Profile'}
           </Text>
           <Text className="font-body font-semibold text-sm text-primary mb-3">
-            Lead Financial Compliance
+            {userProfile?.rank || 'Lead Financial Compliance'}
           </Text>
         </View>
 
@@ -83,7 +142,15 @@ export default function AuditorProfileScreen() {
             </View>
           </View>
 
-          <AnalyticsCard EXPENSE_DATA={AUDIT_DATA} TOTAL_SPEND={TOTAL_AUDITS} />
+          {expenseData.length > 0 ? (
+            <AnalyticsCard EXPENSE_DATA={expenseData} TOTAL_SPEND={totalAudits} />
+          ) : (
+            <View className="items-center justify-center py-10 bg-surface-container-low rounded-[32px] border border-outline-variant/30">
+              <MaterialIcons name="insights" size={40} color="#7b748780" className="mb-3" />
+              <Text className="text-on-surface-variant font-medium">No recorded audit analytics.</Text>
+              <Text className="text-outline-variant text-[11px] mt-1">Pending receipts will appear here!</Text>
+            </View>
+          )}
         </View>
 
         {/* Automation Status */}
@@ -94,7 +161,7 @@ export default function AuditorProfileScreen() {
             </Text>
             <View className="items-end">
               <Text className="font-label text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">
-                Total: 1290
+                Total: {approvalStats.total}
               </Text>
               <Text className="font-label text-[10px] text-on-surface-variant uppercase tracking-widest">
                 Receipts
@@ -106,7 +173,7 @@ export default function AuditorProfileScreen() {
           <View className="mb-2">
             <Text className="font-body text-xs text-on-surface-variant mb-2">Automated by AI vs Manual Review</Text>
           </View>
-          <ProgressBar approved={85} disapproved={15} />
+          <ProgressBar approved={approvedPct} disapproved={disapprovedPct} />
         </View>
 
         {/* Account Settings */}
@@ -117,7 +184,7 @@ export default function AuditorProfileScreen() {
           <TouchableOpacity
             className="flex-row items-center bg-surface-container-low rounded-2xl p-4 gap-4"
             activeOpacity={0.8}
-            onPress={() => router.replace('/sign-in')}
+            onPress={signOut}
           >
             <View className="w-10 h-10 rounded-[14px] bg-error-container/30 items-center justify-center">
               <MaterialIcons name="logout" size={20} color="#BA1A1A" />

@@ -39,13 +39,13 @@ const TripBudgetCard = ({ totalBudget, currency, amountSpent, remaining, progres
                             Spending Progress
                         </Text>
                         <Text className="text-white font-body text-xs font-bold">
-                            {progress}%
+                            {progress.toFixed(0)}%
                         </Text>
                     </View>
                     <View className="h-2 bg-white/20 rounded-full overflow-hidden">
                         <View
                             className="h-full bg-secondary-container rounded-full"
-                            style={{ width: '68%' }}
+                            style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                         />
                     </View>
                 </View>

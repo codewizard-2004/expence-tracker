@@ -5,55 +5,111 @@ import TripBudgetCard from "@/components/TripBudgetCard";
 import TripObjectives from "@/components/TripObjectives";
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
-const purpose = "The annual strategy summit brings together key leadership to finalize the 2024 product roadmap and align on regional expansion goals. This trip involves critical partner networking and team-building sessions at the Macrosoft Global HQ."
-
-const OBJECTIVES = [
-  {
-    title: 'Finalize Q1-Q2 Roadmap',
-    description: 'Reviewing engineering capacity and market trends.',
-    color: '#630ED4',
-  },
-  {
-    title: 'Regional Alignment',
-    description: 'Syncing goals between North America and EMEA leads.',
-    color: '#AB3500',
-  },
-  {
-    title: 'Partner Gala',
-    description: 'High-level networking with tier-1 enterprise clients.',
-    color: '#630ED4',
-  },
-  {
-    title: 'Lumina Integration',
-    description: 'Pilot testing the new AI expense tracking module.',
-    color: '#7C3AED',
-  },
-];
-
-const RECEIPTS = [
-  {
-    icon: 'restaurant',
-    name: 'The Cliff House',
-    date: 'Oct 13, 2023',
-    amount: '$245.00',
-  },
-  {
-    icon: 'flight',
-    name: 'United Airlines',
-    date: 'Oct 12, 2023',
-    amount: '$1120.50',
-  },
-];
+const getCategoryIcon = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case 'food': return 'restaurant';
+    case 'travel': return 'flight';
+    case 'accommodation': return 'hotel';
+    default: return 'receipt';
+  }
+};
 
 export default function TripDetailsScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<'details' | 'receipts'>('details');
+  const { session } = useAuth();
+  const [tripInfo, setTripInfo] = useState<any>(null);
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!session?.user || !id) {
+       if (!id) setLoading(false);
+       return;
+    }
+
+    const fetchTrip = async () => {
+      try {
+        const [tripRes, receiptsRes] = await Promise.all([
+          supabase
+            .from('USERTRIPS')
+            .select(`
+              expenditure,
+              TRIP (
+                *,
+                TRIPLOCATIONS ( city ),
+                TRIPOBJECTIVES ( * )
+              )
+            `)
+            .eq('user_id', session.user.id)
+            .eq('trip_id', id)
+            .single(),
+          supabase
+            .from('TRIP_RECEIPTS')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .eq('trip_id', id)
+            .order('created_at', { ascending: false })
+        ]);
+        
+        if (tripRes.error) throw tripRes.error;
+        if (receiptsRes.error) throw receiptsRes.error;
+        
+        if (tripRes.data) setTripInfo(tripRes.data);
+        if (receiptsRes.data) setReceipts(receiptsRes.data);
+      } catch (e) {
+        console.error("Error fetching trip details:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTrip();
+  }, [session, id]);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    try {
+      const parts = dateString.split('-');
+      if (parts.length === 3) {
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch {
+      return dateString;
+    }
+  };
+
+  if (loading || !tripInfo) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface items-center justify-center">
+        <ActivityIndicator size="large" color="#630ED4" />
+      </SafeAreaView>
+    );
+  }
+
+  const trip = tripInfo.TRIP;
+  const locationStr = trip.TRIPLOCATIONS?.[0]?.city || 'Unknown Location';
+  const uri = `https://loremflickr.com/800/600/city,${locationStr.replace(/\s+/g, '')}`;
+  const expenditure = Number(tripInfo.expenditure) || 0;
+  const budget = Number(trip.budget) || 0;
+  const remaining = budget - expenditure;
+  const progress = budget > 0 ? Math.min(100, Math.max(0, (expenditure / budget) * 100)) : 0;
+  
+  const mappedObjectives = (trip.TRIPOBJECTIVES || []).map((obj: any, idx: number) => ({
+    title: obj.title,
+    description: obj.description || '',
+    color: ['#630ED4', '#AB3500', '#7C3AED'][idx % 3],
+  }));
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -107,24 +163,24 @@ export default function TripDetailsScreen() {
           <View className="px-6">
             {/* Hero Trip Card */}
             <HeroTripCard
-              image={CityImage}
-              title="Q4 Strategy Summit"
-              location="San Francisco, CA"
-              dateStart="Oct 12, 2023"
-              dateEnd="Oct 15, 2023"
+              image={{ uri }}
+              title={trip.name || 'Untitled Trip'}
+              location={locationStr}
+              dateStart={formatDate(trip.startDate)}
+              dateEnd={formatDate(trip.endDate)}
             />
 
             {/* Trip Purpose */}
 
-            <TripObjectives OBJECTIVES={OBJECTIVES} purpose={purpose} />
+            <TripObjectives OBJECTIVES={mappedObjectives} purpose={trip.description || 'No description provided.'} />
 
             {/* Budget Card */}
             <TripBudgetCard
-              totalBudget={12500}
-              currency="$"
-              amountSpent={8450.20}
-              remaining={4049.80}
-              progress={68}
+              totalBudget={budget}
+              currency={trip.currency || '$'}
+              amountSpent={expenditure}
+              remaining={remaining}
+              progress={progress}
             />
 
             {/* Lumina Insight */}
@@ -165,32 +221,40 @@ export default function TripDetailsScreen() {
               </View>
 
               <View className="gap-3">
-                {RECEIPTS.map((receipt, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    activeOpacity={0.8}
-                    className="flex-row items-center bg-surface-container-low rounded-2xl p-4 gap-4"
-                  >
-                    <View className="w-10 h-10 rounded-xl bg-primary-fixed items-center justify-center">
-                      <MaterialIcons
-                        name={receipt.icon as any}
-                        size={20}
-                        color="#630ED4"
-                      />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="font-body font-bold text-sm text-on-surface">
-                        {receipt.name}
+                {receipts.length > 0 ? (
+                  receipts.map((receipt, index) => (
+                    <TouchableOpacity
+                      key={receipt.id || index}
+                      activeOpacity={0.8}
+                      className="flex-row items-center bg-surface-container-low rounded-2xl p-4 gap-4"
+                    >
+                      <View className="w-10 h-10 rounded-xl bg-primary-fixed items-center justify-center">
+                        <MaterialIcons
+                          name={getCategoryIcon(receipt.category) as any}
+                          size={20}
+                          color="#630ED4"
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-body font-bold text-sm text-on-surface">
+                          {receipt.merchant_name || 'Unknown Merchant'}
+                        </Text>
+                        <Text className="font-label text-[10px] text-on-surface-variant mt-0.5 uppercase tracking-wider">
+                          {formatDate(receipt.receipt_date) || 'No Date'}
+                        </Text>
+                      </View>
+                      <Text className="font-headline font-bold text-sm text-on-surface">
+                        {receipt.currency || '$'}{Number(receipt.amount || 0).toFixed(2)}
                       </Text>
-                      <Text className="font-label text-[10px] text-on-surface-variant mt-0.5 uppercase tracking-wider">
-                        {receipt.date}
-                      </Text>
-                    </View>
-                    <Text className="font-headline font-bold text-sm text-on-surface">
-                      {receipt.amount}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View className="items-center py-6 bg-surface-container-low rounded-2xl border border-outline-variant/30">
+                    <MaterialIcons name="receipt-long" size={32} color="#7b748780" className="mb-2" />
+                    <Text className="text-on-surface-variant font-medium text-sm">No receipts uploaded yet.</Text>
+                    <Text className="text-outline-variant text-[11px] mt-1">Tap above to add a new receipt.</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>

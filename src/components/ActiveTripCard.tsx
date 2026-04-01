@@ -10,6 +10,7 @@ import {
 } from "react-native"
 
 type ActiveTripCardProps = {
+    id?: string | number;
     image: any;
     title: string;
     location: string;
@@ -20,13 +21,13 @@ type ActiveTripCardProps = {
     currency: string;
 }
 
-const ActiveTripCard = ({ image, title, location, budget, spent, currency, startDate, endDate, }: ActiveTripCardProps) => {
+const ActiveTripCard = ({ id, image, title, location, budget, spent, currency, startDate, endDate, }: ActiveTripCardProps) => {
     const router = useRouter();
     return (
         <TouchableOpacity
             activeOpacity={0.9}
             className="relative rounded-3xl overflow-hidden shadow-lg shadow-black/10 h-[280px] border border-outline-variant/20"
-            onPress={() => router.push('/employee/trip-details' as any)}>
+            onPress={() => id ? router.push({ pathname: '/employee/trip-details', params: { id } } as any) : router.push('/employee/trip-details' as any)}>
             <Image
                 source={image}
                 style={StyleSheet.absoluteFillObject}
@@ -61,7 +62,7 @@ const ActiveTripCard = ({ image, title, location, budget, spent, currency, start
                         </Text>
                     </View>
                     <View className="h-1.5 w-full bg-white/20 rounded-full overflow-hidden">
-                        <View className="h-full bg-primary-fixed-dim rounded-full" style={{ width: '56.8%' }} />
+                        <View className="h-full bg-primary-fixed-dim rounded-full" style={{ width: `${Math.min(100, Math.max(0, (spent / budget) * 100))}%` }} />
                     </View>
 
                     <View className="flex-row justify-between items-center pt-2">

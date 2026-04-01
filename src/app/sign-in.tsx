@@ -11,15 +11,32 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { useAuth } from '../hooks/useAuth';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignInScreen() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [role, setRole] = useState<'employee' | 'auditor'>('employee');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSignIn = async () => {
+    setLoading(true);
+    const { error, role: userRole } = await signIn(email, password, role);
+    setLoading(false);
+    
+    if (error) {
+      Alert.alert('Sign In Error', error.message);
+    } else if (!userRole) {
+      Alert.alert('Access Denied', 'Your employee profile is not fully set up. Contact IT.');
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -167,17 +184,27 @@ export default function SignInScreen() {
 
             {/* Button */}
             <View className="pt-4">
-              <TouchableOpacity className="shadow-xl rounded-xl overflow-hidden" onPress={() => router.replace(`/${role}` as any)}>
+              <TouchableOpacity 
+                className="shadow-xl rounded-xl overflow-hidden" 
+                onPress={handleSignIn}
+                disabled={loading}
+              >
                 <LinearGradient
                   colors={['#630ED4', '#7C3AED']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  className="py-5 flex-row items-center justify-center gap-3"
+                  className={`py-5 flex-row items-center justify-center gap-3 ${loading ? 'opacity-80' : ''}`}
                 >
-                  <Text className="text-white font-headline font-bold text-lg">
-                    Access Dashboard
-                  </Text>
-                  <MaterialIcons name="arrow-forward" size={20} color="white" />
+                  {loading ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <>
+                      <Text className="text-white font-headline font-bold text-lg">
+                        Access Dashboard
+                      </Text>
+                      <MaterialIcons name="arrow-forward" size={20} color="white" />
+                    </>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>

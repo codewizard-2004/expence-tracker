@@ -6,13 +6,59 @@ import TotalSpendCard from '@/components/TotalSpendCard';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function EmployeeHomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { session } = useAuth();
+  const [trips, setTrips] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const fetchTrips = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('USERTRIPS')
+          .select(`
+            expenditure,
+            TRIP (
+              id, name, budget, currency, startDate, endDate,
+              TRIPLOCATIONS ( city )
+            )
+          `)
+          .eq('user_id', session.user.id);
+        
+        if (error) throw error;
+        if (data) setTrips(data);
+      } catch (e) {
+        console.error("Error fetching trips:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTrips();
+  }, [session]);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    try {
+      const parts = dateString.split('-');
+      if (parts.length === 3) {
+        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch {
+      return dateString;
+    }
+  };
 
   return (
     <View className="flex-1 bg-surface pt-8">
@@ -49,18 +95,36 @@ export default function EmployeeHomeScreen() {
 
           {/* Trips List */}
           <View className="gap-6 mb-12">
-            {/* Trip Card 1 */}
-            <ActiveTripCard
-              image={CityImage}
-              title='Q4 Strategy Summit'
-              location='New York'
-              budget={5000}
-              spent={2840}
-              currency='$'
-              startDate='Oct 12'
-              endDate='Oct 18'
-            />
-
+            {loading ? (
+              <ActivityIndicator size="large" color="#630ED4" />
+            ) : trips.length > 0 ? (
+              trips.map((userTrip, idx) => {
+                const trip = userTrip.TRIP;
+                if (!trip) return null;
+                const location = trip.TRIPLOCATIONS?.[0]?.city || 'Unknown';
+                // Using a semi-random recognizable hash pattern for distinct images
+                const imageUri = `https://loremflickr.com/800/600/city,${location.replace(/\s+/g, '')}`;
+                
+                return (
+                  <ActiveTripCard
+                    id={trip.id}
+                    key={trip.id || idx}
+                    image={{ uri: imageUri }}
+                    title={trip.name}
+                    location={location}
+                    budget={Number(trip.budget) || 0}
+                    spent={Number(userTrip.expenditure) || 0}
+                    currency={trip.currency || '$'}
+                    startDate={formatDate(trip.startDate)}
+                    endDate={formatDate(trip.endDate)}
+                  />
+                )
+              })
+            ) : (
+              <View className="items-center py-8 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+                <Text className="text-on-surface-variant font-medium">No active trips found.</Text>
+              </View>
+            )}
           </View>
 
           {/* Secondary Action - Upload Receipt */}
