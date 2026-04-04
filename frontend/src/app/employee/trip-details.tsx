@@ -260,7 +260,7 @@ export default function TripDetailsScreen() {
                           {receipt.merchant_name || 'Unknown Merchant'}
                         </Text>
                         <Text className="font-label text-[10px] text-on-surface-variant mt-0.5 uppercase tracking-wider">
-                          {formatDate(receipt.receipt_date) || 'No Date'}
+                          {formatDate(receipt.created_at) || 'No Date'}
                         </Text>
                       </View>
                       <Text className="font-headline font-bold text-sm text-on-surface">

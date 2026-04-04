@@ -1,4 +1,4 @@
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from services.llm import policy_llm
@@ -21,9 +21,9 @@ memory = MemorySaver()
 
 # 4. Create the chat agent with built-in persistence
 # The 'checkpointer' allows us to maintain state between calls using a 'thread_id'
-policy_chat_agent = create_react_agent(
-    policy_llm,
-    tools,
-    state_modifier=SYSTEM_PROMPT,
+policy_chat_agent = create_agent(
+    model = policy_llm,
+    tools = tools,
+    system_prompt=SYSTEM_PROMPT,
     checkpointer=memory
 )

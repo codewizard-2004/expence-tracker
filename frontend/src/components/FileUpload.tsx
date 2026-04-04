@@ -1,10 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import { useRouter } from 'expo-router';
 import { File as FSFile } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { Alert, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { Alert, Text, TouchableOpacity, View, ActivityIndicator, TextInput } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 interface SelectedFile {
@@ -20,8 +21,10 @@ interface FileUploadProps {
 }
 
 const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
+  const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [userDescription, setUserDescription] = useState('');
 
   const pickDocument = async () => {
     try {
@@ -124,6 +127,7 @@ const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
           trip_id: tripId,
           user_id: userId,
           url: receiptUrl,
+          user_description: userDescription,
           // AI-generated columns — will be filled by the backend later
           merchant_name: null,
           merchant_location: null,
@@ -131,16 +135,26 @@ const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
           currency: null,
           category: null,
           receipt_date: null,
-          description: null,
+          extracted_description: null,
           status: null,
           ai_reason: null,
         });
 
       if (dbError) throw dbError;
 
-      Alert.alert('Success', 'Receipt uploaded successfully!');
-      setSelectedFile(null);
       onUploadSuccess?.();
+
+      // Navigate to processing screen instead of showing an alert
+      router.push({
+        pathname: '/employee/receipt-processing',
+        params: {
+          file: selectedFile.name,
+          url: receiptUrl ?? ''
+        }
+      });
+
+      setSelectedFile(null);
+      setUserDescription('');
     } catch (error: any) {
       console.error('Upload error:', error);
       Alert.alert('Upload Failed', error?.message || 'Something went wrong. Please try again.');
@@ -167,18 +181,40 @@ const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
       </Text>
 
       {selectedFile && (
-        <View className="flex-row items-center bg-surface-container rounded-2xl p-3 mb-6 shadow-sm border border-outline-variant/30">
-          <MaterialIcons name="insert-drive-file" size={20} color="#630ED4" />
-          <Text
-            className="ml-2 mr-2 font-body text-sm text-on-surface-variant max-w-[200px]"
-            numberOfLines={1}
-            ellipsizeMode="middle"
-          >
-            {selectedFile.name}
-          </Text>
-          <TouchableOpacity onPress={() => setSelectedFile(null)} disabled={uploading}>
-            <MaterialIcons name="close" size={20} color="#AB3500" />
-          </TouchableOpacity>
+        <View className="w-full mb-6">
+          <View className="flex-row items-center bg-surface-container rounded-2xl p-3 mb-3 shadow-sm border border-outline-variant/30">
+            <MaterialIcons name="insert-drive-file" size={20} color="#630ED4" />
+            <Text
+              className="ml-2 mr-2 font-body text-sm text-on-surface-variant max-w-[200px]"
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
+              {selectedFile.name}
+            </Text>
+            <TouchableOpacity onPress={() => setSelectedFile(null)} disabled={uploading}>
+              <MaterialIcons name="close" size={20} color="#AB3500" />
+            </TouchableOpacity>
+          </View>
+
+          <View className="bg-surface-container rounded-2xl p-4 border border-outline-variant/30">
+            <View className="flex-row items-center gap-2 mb-2">
+              <MaterialIcons name="description" size={16} color="#7b7487" />
+              <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">
+                Receipt Description
+              </Text>
+            </View>
+            <TextInput
+              placeholder="Explain what this receipt is for..."
+              placeholderTextColor="#7b748780"
+              multiline
+              numberOfLines={3}
+              value={userDescription}
+              onChangeText={setUserDescription}
+              className="text-on-surface font-body text-sm min-h-[80px]"
+              style={{ textAlignVertical: 'top' }}
+              editable={!uploading}
+            />
+          </View>
         </View>
       )}
 

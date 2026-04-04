@@ -1,10 +1,12 @@
 import BotMessage from '@/components/BotMessage';
 import TopNavigator from '@/components/TopNavigator';
 import UserMessage from '@/components/UserMessage';
+import { sendPolicyChatMessage, generateId, getOrCreateThreadId } from '@/lib/api';
 import { MaterialIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -28,34 +30,67 @@ type Message = {
   };
 };
 
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: '1',
-    type: 'user',
-    text: 'What is the standard policy for overriding a Lumina insight when a user exceeds the daily dining limit?',
-    time: '14:22 PM',
-  },
-  {
-    id: '2',
-    type: 'bot',
-    text: 'According to the **Auditor Protocol Handbook (v5.1)**, you may override Lumina warnings for dining limits if the employee provides a valid exception justification (e.g., client entertainment, remote location markup).',
-    time: 'Just now',
-    compliance: {
-      title: 'Policy Check',
-      policyRef: 'Auditor Protocol Handbook (v5.1)',
-      policyLabel: 'Override Conditions',
-      items: [
-        'Require written justification in the receipt notes.',
-        'Overridden transactions must be logged for monthly review.',
-      ],
-    },
-  },
-];
-
 export default function AuditorChatScreen() {
   const insets = useSafeAreaInsets();
-  const [messages] = useState<Message[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [threadId, setThreadId] = useState<string>('');
+
+  useEffect(() => {
+    getOrCreateThreadId().then(setThreadId);
+  }, []);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const handleSend = async () => {
+    if (!inputText.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      id: generateId(),
+      type: 'user',
+      text: inputText.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInputText('');
+    setIsLoading(true);
+    scrollToBottom();
+
+    try {
+      const response = await sendPolicyChatMessage({
+        message: userMessage.text,
+        thread_id: threadId,
+      });
+
+      const botMessage: Message = {
+        id: generateId(),
+        type: 'bot',
+        text: response.response,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: generateId(),
+        type: 'bot',
+        text: 'Sorry, I encountered an error while processing your request. Please try again.',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      scrollToBottom();
+    }
+  };
 
   return (
     <View className="flex-1 bg-surface pt-8">
@@ -70,6 +105,7 @@ export default function AuditorChatScreen() {
         keyboardVerticalOffset={0}
       >
         <ScrollView
+          ref={scrollViewRef}
           className="flex-1"
           contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
           showsVerticalScrollIndicator={false}
@@ -101,6 +137,13 @@ export default function AuditorChatScreen() {
                 <BotMessage msg={msg} key={msg.id} />
               );
             })}
+            {isLoading && (
+              <View className="items-start">
+                <View className="bg-surface-container-low rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
+                  <ActivityIndicator color="#630ED4" />
+                </View>
+              </View>
+            )}
           </View>
         </ScrollView>
 
@@ -117,12 +160,19 @@ export default function AuditorChatScreen() {
               value={inputText}
               onChangeText={setInputText}
               multiline={true}
+              onSubmitEditing={handleSend}
             />
             <TouchableOpacity
               className="m-2 p-3 bg-primary-container rounded-xl items-center justify-center shadow-md"
               activeOpacity={0.8}
+              onPress={handleSend}
+              disabled={isLoading}
             >
-              <MaterialIcons name="send" size={20} color="white" />
+              {isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <MaterialIcons name="send" size={20} color="white" />
+              )}
             </TouchableOpacity>
           </View>
         </View>

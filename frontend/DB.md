@@ -36,7 +36,8 @@ CREATE TABLE public.TRIP_RECEIPTS (
   receipt_date date,
   amount numeric,
   currency character varying, # USD, INR etc
-  description text,
+  user_description text,
+  extracted_description text,
   status text, #approved, rejected, appealed
   ai_reason text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),

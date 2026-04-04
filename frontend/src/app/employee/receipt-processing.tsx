@@ -18,7 +18,13 @@ const PROCESSING_STEPS = [
 
 export default function ReceiptProcessingScreen() {
   const router = useRouter();
-  const { file } = useLocalSearchParams<{ file?: string }>();
+  const { file, url } = useLocalSearchParams<{ file?: string; url?: string }>();
+
+  useEffect(() => {
+    if (url) {
+      console.log('Processing receipt at URL:', url);
+    }
+  }, [url]);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(true);
