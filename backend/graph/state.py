@@ -6,14 +6,14 @@ class GraphState(BaseModel):
     # --- Input Data (Mandatory at start) ---
     image_path: str
     user_image_description: str
+    # Note: We use Dict[str, Any] for better compatibility with JSON-like metadata
     trip_metadata: Dict[str, Any] = Field(default_factory=lambda: {
-        "trip_currencies": ["USD", "INR"],
         "locations": ["Mumbai", "New York"],
         "window": ["2026-03-20", "2026-03-25"],
         "budget_limit": "500 USD",
         "description": "Business trip for tech conference"
     })
-
+    
     # --- Extraction Results (Optional at start) ---
     is_readable: bool = True
     is_receipt: bool = True
@@ -26,17 +26,17 @@ class GraphState(BaseModel):
     currency: str = "USD"
     items_list: List[str] = Field(default_factory=list)
     extracted_description: Optional[str] = Field(default=None, description="Short description of image")
-
+    
     # --- Authenticity and Results ---
     is_authentic: bool = False
-    auth_violations: List[str] = Field(default_factory=list)
+    auth_violations: List[str] = Field(default_factory = list)
 
     # --- Policy Node Results ---
     is_relevant: bool = False
     is_policy_violating: bool = False
     policy_violations: List[str] = Field(default_factory=list)
     policy_pages: List[int] = Field(default_factory=list)
-
+    
     # --- Final Decision ---
-    decision: str = ""  # approved, disapproved, flagged
+    decision: str = "" # approved, disapproved, flagged
     justification: List[str] = Field(default_factory=list)

@@ -1,17 +1,23 @@
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain.tools import tool
 
 load_dotenv()
 
-google_api = os.getenv("GEMINI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Embeddings model
-embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/gemini-embedding-001",
-    api_key=google_api,
+# embeddings = GoogleGenerativeAIEmbeddings(
+#     model="text-embedding-3-small",
+#     api_key=openai_api_key,
+# )
+
+embeddings = OpenAIEmbeddings(
+    model = "text-embedding-3-small",
+    api_key = openai_api_key
 )
 
 # ChromaDB vector store — points to policy_db/ in the backend directory

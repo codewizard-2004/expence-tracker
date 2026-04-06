@@ -9,24 +9,10 @@ from pydantic import BaseModel
 from graph.graph import app as langgraph_app
 from graph.chat import policy_chat_agent
 
+from schema.models import ProcessReceiptRequest, PolicyChatRequest
+
+
 router = APIRouter(prefix="/api", tags=["receipt"])
-
-
-# ---------------------------------------------------------------------------
-# Request / Response schemas
-# ---------------------------------------------------------------------------
-
-class ProcessReceiptRequest(BaseModel):
-    image_url: str
-    user_image_description: str
-    trip_metadata: Dict[str, Any]
-
-
-class PolicyChatRequest(BaseModel):
-    message: str
-    thread_id: str
-
-
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -111,10 +97,10 @@ async def policy_chat(request: PolicyChatRequest):
         
         # 3. Extract the final AI message
         # In create_react_agent, the 'messages' list is in the state
-        final_message = result["messages"][-1]
+        final_message = result["structured_response"]
         
         return {
-            "response": final_message.content,
+            "response": final_message,
             "thread_id": request.thread_id
         }
 

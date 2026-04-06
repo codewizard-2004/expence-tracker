@@ -1,44 +1,75 @@
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, END, START
 
 from graph.state import GraphState
-from graph.nodes import extraction_node, authenticity_node, policy_check_node, decision_node
+from graph.nodes import extraction_node, authenticity_node2, policy_check_node, decision_node, pdf_extractor_node
 from graph.routing import extraction_decision, authenticity_decision
 
+
+def type_classifier(state: GraphState):
+    # Splits the path and checks extension
+    file_extension = state.image_path.split(".")[-1].lower()
+    if file_extension == "pdf":
+        return "pdf"
+    return "image"
 
 def compile_graph():
     """Build and compile the receipt audit graph."""
     graph = StateGraph(GraphState)
 
-    # --- Nodes ---
-    graph.add_node("extract", extraction_node)
-    graph.add_node("authenticity", authenticity_node)
+    # --- 2. Add Nodes ---
+    graph.add_node("pdf_extraction", pdf_extractor_node)
+    graph.add_node("vision_extraction", extraction_node)
+    graph.add_node("authenticity", authenticity_node2)
     graph.add_node("policy", policy_check_node)
     graph.add_node("decision", decision_node)
 
-    # --- Entry point ---
-    graph.set_entry_point("extract")
-
     # --- Conditional edges ---
     graph.add_conditional_edges(
-        "extract",
+        START,
+        type_classifier,
+        {
+            "pdf": "pdf_extraction",
+            "image": "vision_extraction"
+        }
+    )
+
+    # B. Branching from PDF Extraction
+    graph.add_conditional_edges(
+        "pdf_extraction", # Match the node name above
         extraction_decision,
         {
             "authenticity": "authenticity",
-            "decision": "decision",
-        },
+            "decision": "decision"
+        }
     )
+
+    # C. Branching from Vision Extraction
     graph.add_conditional_edges(
-        "authenticity",
+        "vision_extraction", # Match the node name above
+        extraction_decision,
+        {
+            "authenticity": "authenticity",
+            "decision": "decision"
+        }
+    )
+
+    # D. Authenticity Logic
+    graph.add_conditional_edges(
+        "authenticity", 
         authenticity_decision,
         {
             "policy": "policy",
-            "decision": "decision",
-        },
+            "decision": "decision"
+        }
     )
 
-    # --- Static edges ---
+    # E. Final Steps
     graph.add_edge("policy", "decision")
     graph.add_edge("decision", END)
+
+    # --- 4. Compile and Visualize ---
+    app = graph.compile()
+    print("✅ Graph Skeleton Compiled Successfully!")
 
     return graph.compile()
 

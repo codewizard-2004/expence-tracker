@@ -3,6 +3,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from services.llm import policy_llm
 from services.vector_store import retrieve_context
+from schema.models import PolicyChatResult
 
 # 1. Define the system prompt for the chat assistant
 SYSTEM_PROMPT = (
@@ -11,6 +12,7 @@ SYSTEM_PROMPT = (
     "Use the 'retrieve_context' tool to find relevant policy information. "
     "Always be professional, concise, and helpful. "
     "If you cannot find the answer in the retrieved context, politely inform the user and suggest they contact HR."
+    "If the question is not about policy ignore it"
 )
 
 # 2. Define the tools
@@ -25,5 +27,6 @@ policy_chat_agent = create_agent(
     model = policy_llm,
     tools = tools,
     system_prompt=SYSTEM_PROMPT,
-    checkpointer=memory
+    checkpointer=memory,
+    response_format = PolicyChatResult
 )

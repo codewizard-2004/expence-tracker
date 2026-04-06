@@ -5,67 +5,29 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage
 from langchain.agents import create_agent
+from langchain_community.document_loaders import PyPDFLoader
 
-from services.llm import llm, policy_llm
+from services.llm import llm_for_extraction, llm_for_authenticity, policy_llm
 from services.vector_store import retrieve_context
+from services.tools import get_current_date
 from services.tavily import tavily_search_tool
 from graph.state import GraphState
 
+from schema.prompts import AUTH_SYSTEM_PROMPT, POLICY_SYSTEM_PROMPT, POLICY_CONTEXT_PROMPT, DECISION_CONTEXT_PROMPT
+from schema.models import AuthenticityResult, RecieptExtraction, PolicyNodeResult, DecisionNodeResult
 
 # ---------------------------------------------------------------------------
-# Structured output schemas
-# ---------------------------------------------------------------------------
-
-class RecieptExtraction(BaseModel):
-    """Structured data extracted from a business travel receipt."""
-
-    is_readable: bool = Field(description="Whether the image is a clear, readable receipt.")
-    is_receipt: bool = Field(description="Whether the uploaded image is actually a receipt and not a random photo.")
-    merchant_name: Optional[str] = Field(description="The name of the vendor or store.")
-    merchant_location: Optional[str] = Field(description="The city or address of the merchant.")
-    receipt_date: Optional[str] = Field(description="The date on the receipt in YYYY-MM-DD format.")
-    receipt_amount: float = Field(default=0.0, description="The total amount shown on the receipt.")
-    receipt_tax_id: Optional[str] = Field(description="VAT ID, GST ID, or any other tax identification number.")
-    currency: str = Field(default="USD", description="The currency code (e.g., USD, EUR, INR).")
-    items_list: list[str] = Field(default_factory=list, description="A list of items purchased.")
-    extracted_description: str = Field(description="A short description of the extracted image in 2-3 sentences.")
-
-
-class AuthenticityResult(BaseModel):
-    location_match: bool = Field(description="True if the merchant actually exists in any of the trip locations.")
-    explanation: Optional[str] = Field(description="Explain the decision of location_match.")
-
-
-class PolicyNodeResult(BaseModel):
-    is_relevant: bool = False
-    is_policy_violating: bool = False
-    policy_violations: List[str] = Field(default_factory=list, description="Contains all policy violations.")
-    policy_pages: List[int] = Field(default_factory=list, description="Pages of policy rules that were violated.")
-
-
-class DecisionNodeResult(BaseModel):
-    is_approved: bool = Field(description="True if the receipt is approved.")
-    justification: List[str] = Field(default_factory=list)
-
-
-# ---------------------------------------------------------------------------
-# Policy agent — lazy singleton (created once on first request)
+# agents — lazy singleton (created once on first request)
 # ---------------------------------------------------------------------------
 
 _policy_agent = None
-
+_authenticity_agent = None
 
 def _get_policy_agent():
     global _policy_agent
     if _policy_agent is None:
-        tools = [retrieve_context]
-        system_prompt = (
-            "You are a strict Corporate Compliance Agent. "
-            "Use the retrieve_context tool to search the company policy for every item listed in the receipt. "
-            "If an item (like alcohol) is forbidden or a category (like meals) has a price limit, "
-            "you also need to check if the given items are relevant to the trip (e.g., going to Disney Park etc.). "
-            "Explicitly state the violation. If you are unsure or the context is missing, flag it for review."
-        )
+        tools = [retrieve_context, get_current_date]
+        system_prompt = POLICY_SYSTEM_PROMPT
         _policy_agent = create_agent(
             policy_llm,
             tools,
@@ -74,14 +36,58 @@ def _get_policy_agent():
         )
     return _policy_agent
 
+def _get_authenticity_agent():
+    global _authenticity_agent
+    if _authenticity_agent is None:
+        tools = [tavily_search_tool]
+        system_prompt = AUTH_SYSTEM_PROMPT
+        _authenticity_agent = create_agent(
+            llm_for_authenticity,
+            tools,
+            system_prompt=system_prompt,
+            response_format=AuthenticityResult,
+        )
+    return _authenticity_agent
 
 # ---------------------------------------------------------------------------
 # Node functions
 # ---------------------------------------------------------------------------
+def pdf_extractor_node(state: GraphState):
+    print("--- NODE: PDF Extractor ---")
+    
+    loader = PyPDFLoader(state.image_path)
+    docs = loader.load()
+    # Combine all pages into one text block for the LLM
+    full_text = "\n".join([doc.page_content for doc in docs])
+    
+    prompt = f"""
+    Analyze the following text extracted from a PDF. 
+    Check if it is a receipt. If yes, extract the details into the required format.
+    
+    PDF TEXT:
+    {full_text}
+    """
+    extraction_llm = llm_for_extraction.with_structured_output(RecieptExtraction)
+    # Use the same structured LLM you used in the vision node
+    try:
+        response = extraction_llm.invoke(prompt) # Text-only call
+        return {
+            "is_readable": response.is_readable,
+            "is_receipt": response.is_receipt,
+            "merchant_name": response.merchant_name,
+            "merchant_location": response.merchant_location,
+            "receipt_date": response.receipt_date,
+            "receipt_amount": response.receipt_amount,
+            "currency": response.currency,
+            "items_list": response.items_list,
+        }
+    except Exception as e:
+        print(f"   > PDF Extraction Error: {e}")
+        return {"is_readable": False}
 
 def extraction_node(state: GraphState) -> dict:
     print("--- NODE: Extraction (Vision) ---")
-    structured_llm = llm.with_structured_output(RecieptExtraction)
+    structured_llm = llm_for_extraction.with_structured_output(RecieptExtraction)
 
     image_path = state.image_path
     mime_type, _ = mimetypes.guess_type(image_path)
@@ -164,7 +170,7 @@ def authenticity_node(state: GraphState) -> dict:
 
     response = None
     try:
-        verify_llm = llm.with_structured_output(AuthenticityResult)
+        verify_llm = llm_for_authenticity.with_structured_output(AuthenticityResult)
         response = verify_llm.invoke([HumanMessage(content=prompt)])
 
         if not response.location_match:
@@ -183,6 +189,51 @@ def authenticity_node(state: GraphState) -> dict:
         "auth_violations": state.auth_violations + viol,
     }
 
+def authenticity_node2(state: GraphState):
+    print("--- NODE: Authenticity ---")
+    is_authentic = True
+    local_violations = [] # Initialize here to avoid NameError
+
+    # 1. Date Window Check (Python Logic)
+    start_date, end_date = state.trip_metadata["window"]
+    if not (start_date <= state.receipt_date <= end_date):
+        is_authentic = False
+        msg = f"Receipt date {state.receipt_date} is outside trip window ({start_date} to {end_date})"
+        print(f"\t>{msg}")
+        # Return early if date is bad
+        return {
+            "is_authentic": False,
+            "auth_violations": state.auth_violations + [msg]
+        }
+    
+    print("\t>Dates OK") 
+     
+    # 2. Agent Check (Currency and Location)
+    prompt = f"""
+    Verify authenticity:
+    Merchant: {state.merchant_name} at {state.merchant_location}
+    Trip Information: {state.trip_metadata.get('locations')}
+    """
+    agent = _get_authenticity_agent()
+    try:
+        answer = agent.invoke({"messages": [HumanMessage(content=prompt)]})
+        response = answer['structured_response']
+        
+        if not response.location_match or not response.currency_match:
+            is_authentic = False
+            if response.violations:
+                local_violations.append(response.violations)
+            print(f"\t>Receipt flagged: {response.violations}")
+            
+    except Exception as e:
+        print(f"\t> Error in Agent verification: {e}")
+        local_violations.append("Technical error during agentic verification.")
+        is_authentic = False
+
+    return {
+        "is_authentic": is_authentic,
+        "auth_violations": state.auth_violations + local_violations
+    }
 
 def policy_check_node(state: GraphState) -> dict:
     print("--- NODE: Policy Check ---")
@@ -193,14 +244,7 @@ def policy_check_node(state: GraphState) -> dict:
     }
     data_for_llm = {k: v for k, v in state.model_dump().items() if k not in exclude_keys}
 
-    prompt = f"""
-    Data extracted from the image.\n\n{data_for_llm}\n\n
-    Trip Metadata is the information about the trip extracted from the Database.
-    Use these to check for any policy violations and relevancy of the receipt.
-    Explain the policy violations if any in the justifications list in 1-3 points.
-    Add which pages of the policy documents are violated (if any) in policy_pages list.
-    Ignore if any messages like "NOT A FINAL RECEIPT" appear in the document.
-    """
+    prompt = POLICY_CONTEXT_PROMPT(data_for_llm)
     query = HumanMessage(content=prompt)
     agent = _get_policy_agent()
 
@@ -227,22 +271,10 @@ def decision_node(state: GraphState) -> dict:
     exclude_keys = {"decision"}
     data_for_llm = {k: v for k, v in state.model_dump().items() if k not in exclude_keys}
 
-    prompt = f"""
-    You are an expert corporate auditor. Based on the following receipt data and travel metadata,
-    decide if this expense should be Approved or Disapproved.
-
-    AUDIT DATA:
-    {data_for_llm}
-
-    GUIDELINES:
-    - If there are any 'auth_violations' or 'policy_violations', you MUST Disapprove.
-    - Provide exactly 1-3 bullet points of justification only if you disapproved.
-    - Be professional and concise.
-    - Make sure that the receipt doesn't exceed the budget of the trip.
-    """
+    prompt = DECISION_CONTEXT_PROMPT(data_for_llm)
 
     try:
-        primary_judge = llm.with_structured_output(DecisionNodeResult)
+        primary_judge = llm_for_extraction.with_structured_output(DecisionNodeResult)
         response = primary_judge.invoke([HumanMessage(content=prompt)])
 
         status = "approved" if response.is_approved else "disapproved"
