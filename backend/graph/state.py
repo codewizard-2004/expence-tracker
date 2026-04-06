@@ -25,6 +25,7 @@ class GraphState(BaseModel):
     receipt_amount: float = 0.0
     currency: str = "USD"
     items_list: List[str] = Field(default_factory=list)
+    receipt_category: str = Field(default="Others", description="Determines the category of the receipt from the following list: ['Meals', 'Travel', 'Accommodation', 'Others']")
     extracted_description: Optional[str] = Field(default=None, description="Short description of image")
     
     # --- Authenticity and Results ---

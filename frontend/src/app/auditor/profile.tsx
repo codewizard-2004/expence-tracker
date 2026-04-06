@@ -6,11 +6,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
+import { useRefresh } from '../../hooks/useRefresh';
+import { useFocusEffect } from 'expo-router';
 
 export default function AuditorProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -18,59 +20,67 @@ export default function AuditorProfileScreen() {
   const { session, userProfile, signOut } = useAuth();
   const [expenseData, setExpenseData] = useState<any[]>([]);
   const [totalAudits, setTotalAudits] = useState<number>(0);
-  const [approvalStats, setApprovalStats] = useState({ total: 0, approvedRaw: 0, disapprovedRaw: 0 });
+  const [approvalStats, setApprovalStats] = useState({ total: 0, approvedRaw: 0, disapprovedRaw: 0, appealedRaw: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAnalytics = useCallback(async () => {
     if (!session?.user) return;
+    try {
+      const { data: receipts, error } = await supabase
+        .from('TRIP_RECEIPTS')
+        .select('*');
 
-    const fetchAnalytics = async () => {
-      try {
-        const { data: receipts, error } = await supabase
-          .from('TRIP_RECEIPTS')
-          .select('*');
+      if (error) throw error;
+      const count = receipts?.length || 0;
+      let appCount = 0;
+      let rejCount = 0;
+      let flaggedCount = 0;
+      let appealedCount = 0;
 
-        if (error) throw error;
-        
-        const count = receipts?.length || 0;
-        let appCount = 0;
-        let rejCount = 0;
-        let flaggedCount = 0;
+      (receipts || []).forEach(r => {
+        if (r.status === 'approved') appCount++;
+        else if (r.status === 'rejected') rejCount++;
+        else if (r.status === 'appealed') appealedCount++;
+        else flaggedCount++; // Pending essentially means manual/flagged wait
+      });
 
-        (receipts || []).forEach(r => {
-          if (r.status === 'approved') appCount++;
-          else if (r.status === 'rejected') rejCount++;
-          else flaggedCount++; // Appealed or null essentially means manual/flagged
-        });
+      setTotalAudits(count);
 
-        setTotalAudits(count);
-        
-        setApprovalStats({ 
-          total: count, 
-          approvedRaw: appCount + rejCount, 
-          disapprovedRaw: flaggedCount 
-        });
+      setApprovalStats({
+        total: count,
+        approvedRaw: appCount,
+        disapprovedRaw: rejCount,
+        appealedRaw: appealedCount
+      });
 
-        if (count > 0) {
-          setExpenseData([
-            { label: 'Approved', icon: 'check-circle', subtitle: 'Auto & Manual', amount: appCount, color: '#630ED4', pct: Math.round((appCount / count) * 100) },
-            { label: 'Flagged', icon: 'warning', subtitle: 'Lumina Checks', amount: flaggedCount, color: '#FE6A34', pct: Math.round((flaggedCount / count) * 100) },
-            { label: 'Rejected', icon: 'cancel', subtitle: 'Policy Violation', amount: rejCount, color: '#BA1A1A', pct: Math.round((rejCount / count) * 100) },
-          ].sort((a, b) => b.amount - a.amount));
-        } else {
-          setExpenseData([]);
-        }
-      } catch (e) {
-        console.error("Error fetching auditor analytics:", e);
-      } finally {
-        setLoading(false);
+      if (count > 0) {
+        const rawData = [
+          { label: 'Approved', icon: 'check-circle', subtitle: 'Auto & Manual', amount: appCount, color: '#630ED4' },
+          { label: 'Flagged/Pending', icon: 'warning', subtitle: 'AI Checks', amount: flaggedCount, color: '#7b7487' },
+          { label: 'Rejected', icon: 'cancel', subtitle: 'Policy Violation', amount: rejCount, color: '#FBC02D' },
+          { label: 'Appealed', icon: 'edit-note', subtitle: 'Manual Review', amount: appealedCount, color: '#FE6A34' },
+        ].sort((a, b) => b.amount - a.amount).filter(d => d.amount > 0);
+
+        setExpenseData(rawData.map(d => ({ ...d, pct: Math.round((d.amount / count) * 100) })));
+      } else {
+        setExpenseData([]);
       }
-    };
-    
-    fetchAnalytics();
-  }, [session]);
+    } catch (e) {
+      console.error("Error fetching auditor analytics:", e);
+    } finally {
+      if (loading) setLoading(false);
+    }
+  }, [session, loading]);
 
-  if (loading) {
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnalytics();
+    }, [fetchAnalytics])
+  );
+
+  const { refreshing, onRefresh } = useRefresh(fetchAnalytics);
+
+  if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-surface items-center justify-center">
         <ActivityIndicator size="large" color="#630ED4" />
@@ -78,9 +88,10 @@ export default function AuditorProfileScreen() {
     );
   }
 
-  const decidedCount = approvalStats.approvedRaw + approvalStats.disapprovedRaw;
-  const approvedPct = decidedCount > 0 ? Math.round((approvalStats.approvedRaw / decidedCount) * 100) : 0;
-  const disapprovedPct = decidedCount > 0 ? Math.round((approvalStats.disapprovedRaw / decidedCount) * 100) : 0;
+  const decidedCount = approvalStats.total || 1; // prevent div 0
+  const approvedPct = Math.round((approvalStats.approvedRaw / decidedCount) * 100);
+  const disapprovedPct = Math.round((approvalStats.disapprovedRaw / decidedCount) * 100);
+  const appealedPct = Math.round((approvalStats.appealedRaw / decidedCount) * 100);
 
   return (
     <View className="flex-1 bg-surface pt-8">
@@ -92,6 +103,7 @@ export default function AuditorProfileScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 100, 140), paddingHorizontal: 24 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#630ED4" />}
       >
         {/* Profile Card */}
         <View className="items-center pt-8 mb-10">
@@ -173,7 +185,7 @@ export default function AuditorProfileScreen() {
           <View className="mb-2">
             <Text className="font-body text-xs text-on-surface-variant mb-2">Automated by AI vs Manual Review</Text>
           </View>
-          <ProgressBar approved={approvedPct} disapproved={disapprovedPct} />
+          <ProgressBar approved={approvedPct} disapproved={disapprovedPct} appealed={appealedPct} />
         </View>
 
         {/* Account Settings */}

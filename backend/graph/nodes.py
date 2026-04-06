@@ -80,6 +80,8 @@ def pdf_extractor_node(state: GraphState):
             "receipt_amount": response.receipt_amount,
             "currency": response.currency,
             "items_list": response.items_list,
+            "receipt_category": response.receipt_category,
+            "extracted_description": response.extracted_description,
         }
     except Exception as e:
         print(f"   > PDF Extraction Error: {e}")
@@ -121,6 +123,7 @@ def extraction_node(state: GraphState) -> dict:
             "receipt_tax_id": response.receipt_tax_id or None,
             "currency": response.currency or "Cannot Understand",
             "items_list": response.items_list,
+            "receipt_category": response.receipt_category,
             "extracted_description": response.extracted_description,
         }
     except Exception as e:

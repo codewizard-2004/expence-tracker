@@ -1,11 +1,12 @@
 import ActiveTripCard from '@/components/ActiveTripCard';
 import TopNavigator from '@/components/TopNavigator';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View, RefreshControl } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { useRefresh } from '../../hooks/useRefresh';
 
 interface ManagedTrip {
   id: number;
@@ -23,61 +24,65 @@ export default function AuditorHome() {
   const [trips, setTrips] = useState<ManagedTrip[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchTrips = async () => {
-      try {
-        // Fetch all trips with their locations
-        const { data: tripData, error: tripError } = await supabase
-          .from('TRIP')
-          .select(`
-            id, name, budget, currency, startDate, endDate,
-            TRIPLOCATIONS ( city )
-          `)
-          .order('created_at', { ascending: false });
+  const fetchTrips = useCallback(async () => {
+    try {
+      // Fetch all trips with their locations
+      const { data: tripData, error: tripError } = await supabase
+        .from('TRIP')
+        .select(`
+          id, name, budget, currency, startDate, endDate,
+          TRIPLOCATIONS ( city )
+        `)
+        .order('created_at', { ascending: false });
 
-        if (tripError) throw tripError;
+      if (tripError) throw tripError;
 
-        if (!tripData || tripData.length === 0) {
-          setTrips([]);
-          return;
-        }
-
-        // Fetch total expenditure per trip (sum across all employees)
-        const tripIds = tripData.map((t: any) => t.id);
-        const { data: expenditureData, error: expError } = await supabase
-          .from('USERTRIPS')
-          .select('trip_id, expenditure')
-          .in('trip_id', tripIds);
-
-        if (expError) throw expError;
-
-        // Sum expenditure per trip_id
-        const spentMap: Record<number, number> = {};
-        (expenditureData || []).forEach((row: any) => {
-          spentMap[row.trip_id] = (spentMap[row.trip_id] || 0) + Number(row.expenditure || 0);
-        });
-
-        const mapped: ManagedTrip[] = tripData.map((t: any) => ({
-          id: t.id,
-          name: t.name || 'Untitled Trip',
-          budget: Number(t.budget) || 0,
-          currency: t.currency || '$',
-          startDate: t.startDate || '',
-          endDate: t.endDate || '',
-          city: t.TRIPLOCATIONS?.[0]?.city || 'City',
-          totalSpent: spentMap[t.id] || 0,
-        }));
-
-        setTrips(mapped);
-      } catch (e) {
-        console.error('Error fetching managed trips:', e);
-      } finally {
-        setLoading(false);
+      if (!tripData || tripData.length === 0) {
+        setTrips([]);
+        return;
       }
-    };
 
-    fetchTrips();
-  }, []);
+      // Fetch total expenditure per trip (sum across all employees)
+      const tripIds = tripData.map((t: any) => t.id);
+      const { data: expenditureData, error: expError } = await supabase
+        .from('USERTRIPS')
+        .select('trip_id, expenditure')
+        .in('trip_id', tripIds);
+
+      if (expError) throw expError;
+
+      // Sum expenditure per trip_id
+      const spentMap: Record<number, number> = {};
+      (expenditureData || []).forEach((row: any) => {
+        spentMap[row.trip_id] = (spentMap[row.trip_id] || 0) + Number(row.expenditure || 0);
+      });
+
+      const mapped: ManagedTrip[] = tripData.map((t: any) => ({
+        id: t.id,
+        name: t.name || 'Untitled Trip',
+        budget: Number(t.budget) || 0,
+        currency: t.currency || '$',
+        startDate: t.startDate || '',
+        endDate: t.endDate || '',
+        city: t.TRIPLOCATIONS?.[0]?.city || 'City',
+        totalSpent: spentMap[t.id] || 0,
+      }));
+
+      setTrips(mapped);
+    } catch (e) {
+      console.error('Error fetching managed trips:', e);
+    } finally {
+      if (loading) setLoading(false);
+    }
+  }, [loading]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTrips();
+    }, [fetchTrips])
+  );
+
+  const { refreshing, onRefresh } = useRefresh(fetchTrips);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -98,7 +103,11 @@ export default function AuditorHome() {
       <StatusBar style="dark" />
       <TopNavigator mode='auditor' />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 140 }} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#630ED4" />}
+      >
         <View className="px-6 flex-1 mt-6">
 
           {/* Create New Trip CTA */}
@@ -139,7 +148,7 @@ export default function AuditorHome() {
 
           {/* Trips List */}
           <View className="gap-6 mb-4">
-            {loading ? (
+            {loading && !refreshing ? (
               <View className="items-center py-12">
                 <ActivityIndicator size="large" color="#630ED4" />
                 <Text className="text-on-surface-variant font-body text-sm mt-3">

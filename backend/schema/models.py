@@ -19,6 +19,7 @@ class RecieptExtraction(BaseModel):
     currency: str = Field(default="USD", description="The currency code (e.g., USD, EUR, INR).")
     items_list: list[str] = Field(default_factory=list, description="A list of items purchased.")
     extracted_description: str = Field(description="A short description of the extracted image in 2-3 sentences.")
+    receipt_category: str = Field(default="Others", description="Determines the category of the receipt from the following list: ['Meals', 'Travel', 'Accommodation', 'Others']")
 
 class PolicyNodeResult(BaseModel):
     is_relevant: bool = False

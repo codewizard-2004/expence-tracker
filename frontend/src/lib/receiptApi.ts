@@ -30,6 +30,7 @@ export type ProcessReceiptResponse = {
   receipt_amount: number | null;
   currency: string | null;
   items_list: string[];
+  receipt_category: string | null;
   extracted_description: string | null;
   is_authentic: boolean;
   auth_violations: string[];
@@ -39,7 +40,6 @@ export type ProcessReceiptResponse = {
   policy_pages: number[];
   decision: string;
   justification: string[];
-  auth_violations: string[];
 };
 
 export async function processReceipt(

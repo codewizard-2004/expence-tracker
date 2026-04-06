@@ -4,14 +4,14 @@ import SecondaryAction from "@/components/SecondaryAction";
 import TopNavigator from '@/components/TopNavigator';
 import TotalSpendCard from '@/components/TotalSpendCard';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { useRefresh } from '../../hooks/useRefresh';
 
 export default function EmployeeHomeScreen() {
   const insets = useSafeAreaInsets();
@@ -19,33 +19,37 @@ export default function EmployeeHomeScreen() {
   const { session } = useAuth();
   const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchTrips = useCallback(async () => {
+    if (!session?.user) return;
+    try {
+      const { data, error } = await supabase
+        .from('USERTRIPS')
+        .select(`
+          expenditure,
+          TRIP (
+            id, name, budget, currency, startDate, endDate,
+            TRIPLOCATIONS ( city )
+          )
+        `)
+        .eq('user_id', session.user.id);
+      
+      if (error) throw error;
+      if (data) setTrips(data);
+    } catch (e) {
+      console.error("Error fetching trips:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
+
   useFocusEffect(
     useCallback(() => {
-    if (!session?.user) return;
+      fetchTrips();
+    }, [fetchTrips])
+  );
 
-    const fetchTrips = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('USERTRIPS')
-          .select(`
-            expenditure,
-            TRIP (
-              id, name, budget, currency, startDate, endDate,
-              TRIPLOCATIONS ( city )
-            )
-          `)
-          .eq('user_id', session.user.id);
-        
-        if (error) throw error;
-        if (data) setTrips(data);
-      } catch (e) {
-        console.error("Error fetching trips:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTrips();
-  }, [session]));
+  const { refreshing, onRefresh } = useRefresh(fetchTrips);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -61,13 +65,25 @@ export default function EmployeeHomeScreen() {
     }
   };
 
+  if (loading && !refreshing) {
+    return (
+      <View className="flex-1 bg-surface items-center justify-center">
+        <ActivityIndicator size="large" color="#630ED4" />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-surface pt-8">
       <StatusBar style="dark" />
       {/* Header - Fixed at top */}
       <TopNavigator mode='employee' />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 80, 100) }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#630ED4" />}
+      >
         <View className="px-6 flex-1">
           {/* Hero Summary */}
           <View className="mb-10 mt-2">

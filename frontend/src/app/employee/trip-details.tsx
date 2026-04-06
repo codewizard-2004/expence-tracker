@@ -5,18 +5,19 @@ import TripBudgetCard from "@/components/TripBudgetCard";
 import TripObjectives from "@/components/TripObjectives";
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useState, useEffect } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, Modal, Linking } from 'react-native';
 import { Image } from 'expo-image';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useState, useCallback, useEffect } from 'react';
+import { ActivityIndicator, Modal, ScrollView, Text, TouchableOpacity, View, TextInput, Alert, RefreshControl, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { useRefresh } from '../../hooks/useRefresh';
 
 const getCategoryIcon = (category: string) => {
   switch (category?.toLowerCase()) {
-    case 'food': return 'restaurant';
+    case 'meals': return 'restaurant';
     case 'travel': return 'flight';
     case 'accommodation': return 'hotel';
     default: return 'receipt';
@@ -38,12 +39,66 @@ const formatDate = (dateString: string) => {
 };
 
 // ─── Receipt Details Modal ───────────────────────────────────────────────────────
-const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
+const ReceiptDetailsModal = ({ visible, onClose, receipt, onAppealSuccess }: any) => {
+  const [isAppealing, setIsAppealing] = useState(false);
+  const [explanation, setExplanation] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset appeal state when modal is closed/opened
+  useEffect(() => {
+    if (!visible) {
+      setIsAppealing(false);
+      setExplanation('');
+      setIsSubmitting(false);
+    }
+  }, [visible]);
+
   if (!receipt) return null;
 
   const isApproved = receipt.status === 'approved';
   const isRejected = receipt.status === 'rejected';
-  const isPending  = !receipt.status;
+  const isAppealed = receipt.status === 'appealed';
+  const isPending = !receipt.status;
+
+  const handleSubmitAppeal = async () => {
+    if (explanation.trim().length === 0) {
+      Alert.alert('Explanation Required', 'Please provide a reason for your appeal.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { error: appealError } = await supabase
+        .from('APPEALS')
+        .insert({
+          receipt_id: Number(receipt.id),
+          explanation: explanation.trim()
+        });
+
+      if (appealError) throw appealError;
+
+      const { error: updateError } = await supabase
+        .from('TRIP_RECEIPTS')
+        .update({ status: 'appealed' })
+        .eq('id', Number(receipt.id));
+
+      if (updateError) throw updateError;
+
+      Alert.alert('Appeal Submitted', 'Your appeal has been successfully submitted to the auditor.', [
+        {
+          text: 'OK', onPress: () => {
+            onClose();
+            if (onAppealSuccess) onAppealSuccess();
+          }
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Error submitting appeal:', error);
+      Alert.alert('Error', 'Failed to submit appeal. Please try again.');
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -63,7 +118,10 @@ const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 40 }}
+          >
             {/* Receipt Image */}
             <View className="w-full h-52 bg-surface-container-high rounded-2xl mb-6 overflow-hidden border border-outline-variant/20 relative">
               {receipt.url ? (
@@ -73,7 +131,7 @@ const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
                     style={{ width: '100%', height: '100%' } as any}
                     contentFit="contain"
                   />
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     className="absolute bottom-3 right-3 bg-black/60 p-2 rounded-xl"
                     onPress={() => Linking.openURL(receipt.url)}
                   >
@@ -95,7 +153,7 @@ const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
               <Text className="font-headline font-bold text-lg text-on-surface mb-4 border-b border-outline-variant/20 pb-2">
                 Processed Details
               </Text>
-              
+
               <View className="gap-y-3">
                 <View className="flex-row justify-between">
                   <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Merchant</Text>
@@ -121,12 +179,12 @@ const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
                   <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Amount</Text>
                   <Text className="text-on-surface font-body font-bold text-sm">{receipt.currency || ''}{receipt.amount != null ? Number(receipt.amount).toFixed(2) : '—'}</Text>
                 </View>
-                
+
                 {/* Status and reason block */}
-                <View className={`mt-2 p-3 border rounded-xl ${isApproved ? 'bg-primary/10 border-primary/20' : isRejected ? 'bg-[#BA1A1A]/10 border-[#BA1A1A]/30' : 'bg-surface-container-high border-outline-variant/30'}`}>
+                <View className={`mt-2 p-3 border rounded-xl ${isApproved ? 'bg-primary/10 border-primary/20' : isRejected ? 'bg-[#BA1A1A]/10 border-[#BA1A1A]/30' : isAppealed ? 'bg-[#F59E0B]/10 border-[#F59E0B]/30' : 'bg-surface-container-high border-outline-variant/30'}`}>
                   <View className="flex-row justify-between items-center">
                     <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Status</Text>
-                    <Text className={`font-headline font-bold text-sm uppercase ${isApproved ? 'text-primary' : isRejected ? 'text-[#BA1A1A]' : 'text-on-surface-variant'}`}>
+                    <Text className={`font-headline font-bold text-sm uppercase ${isApproved ? 'text-primary' : isRejected ? 'text-[#BA1A1A]' : isAppealed ? 'text-secondary' : 'text-on-surface-variant'}`}>
                       {receipt.status || 'PENDING'}
                     </Text>
                   </View>
@@ -140,13 +198,80 @@ const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
               </View>
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={onClose}
-              className="bg-surface-container-highest py-4 rounded-full items-center justify-center shadow-sm"
-            >
-              <Text className="text-on-surface font-headline font-bold text-base">Close</Text>
-            </TouchableOpacity>
+            {isRejected && !isAppealed && !isAppealing && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setIsAppealing(true)}
+                className="mb-4"
+              >
+                <LinearGradient
+                  colors={['#630ED4', '#7C3AED']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="flex-row items-center justify-center gap-2 py-4 rounded-full shadow-sm"
+                >
+                  <MaterialIcons name="edit-note" size={20} color="white" />
+                  <Text className="text-white font-headline font-bold text-base">Appeal this Decision</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+
+            {isAppealing && (
+              <View className="w-full mb-6 mt-2 relative bg-surface-container-low p-4 rounded-[24px]">
+                <Text className="font-headline font-bold text-sm text-on-surface mb-2 px-1">Appeal Explanation</Text>
+                <TextInput
+                  value={explanation}
+                  onChangeText={text => {
+                    if (text.length <= 100) setExplanation(text);
+                  }}
+                  placeholder="Explain why this should be approved..."
+                  placeholderTextColor="#7b748780"
+                  multiline
+                  textAlignVertical="top"
+                  className="bg-surface rounded-2xl p-4 text-on-surface font-body text-base border border-outline-variant/30 min-h-[100px]"
+                />
+                <Text className={`text-xs mt-2 px-1 text-right font-label ${explanation.length >= 100 ? 'text-[#BA1A1A]' : 'text-on-surface-variant'}`}>
+                  {explanation.length}/100
+                </Text>
+
+                <View className="flex-row justify-between mt-4">
+                  <TouchableOpacity
+                    onPress={() => setIsAppealing(false)}
+                    className="flex-1 py-3 items-center"
+                    disabled={isSubmitting}
+                  >
+                    <Text className="text-on-surface-variant font-headline font-bold">Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleSubmitAppeal}
+                    disabled={isSubmitting || explanation.trim().length === 0}
+                    className={`flex-1 py-3 rounded-full items-center flex-row justify-center gap-2 ${explanation.trim().length > 0 ? 'bg-primary' : 'bg-surface-container-highest'}`}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="send" size={16} color={explanation.trim().length > 0 ? "white" : "#7b7487"} />
+                        <Text className={`font-headline font-bold ${explanation.trim().length > 0 ? 'text-white' : 'text-on-surface-variant'}`}>
+                          Submit
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {!isAppealing && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={onClose}
+                className="bg-surface-container-highest py-4 rounded-full items-center justify-center shadow-sm"
+              >
+                <Text className="text-on-surface font-headline font-bold text-base">Close</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -164,73 +289,60 @@ export default function TripDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
 
-  const fetchReceipts = async () => {
+  const fetchTripData = useCallback(async () => {
     if (!session?.user || !id) return;
     try {
-      const { data, error } = await supabase
-        .from('TRIP_RECEIPTS')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('trip_id', id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      if (data) setReceipts(data);
+      const [tripRes, receiptsRes] = await Promise.all([
+        supabase
+          .from('USERTRIPS')
+          .select(`
+            expenditure,
+            TRIP (
+              *,
+              TRIPLOCATIONS ( city ),
+              TRIPOBJECTIVES ( * )
+            )
+          `)
+          .eq('user_id', session.user.id)
+          .eq('trip_id', id)
+          .single(),
+        supabase
+          .from('TRIP_RECEIPTS')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('trip_id', id)
+          .order('created_at', { ascending: false })
+      ]);
+
+      if (tripRes.error) throw tripRes.error;
+      if (receiptsRes.error) throw receiptsRes.error;
+
+      if (tripRes.data) setTripInfo(tripRes.data);
+      if (receiptsRes.data) setReceipts(receiptsRes.data);
     } catch (e) {
-      console.error('Error refreshing receipts:', e);
+      console.error("Error fetching trip details:", e);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    if (!session?.user || !id) {
-       if (!id) setLoading(false);
-       return;
-    }
-
-    const fetchTrip = async () => {
-      try {
-        const [tripRes, receiptsRes] = await Promise.all([
-          supabase
-            .from('USERTRIPS')
-            .select(`
-              expenditure,
-              TRIP (
-                *,
-                TRIPLOCATIONS ( city ),
-                TRIPOBJECTIVES ( * )
-              )
-            `)
-            .eq('user_id', session.user.id)
-            .eq('trip_id', id)
-            .single(),
-          supabase
-            .from('TRIP_RECEIPTS')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .eq('trip_id', id)
-            .order('created_at', { ascending: false })
-        ]);
-        
-        if (tripRes.error) throw tripRes.error;
-        if (receiptsRes.error) throw receiptsRes.error;
-        
-        if (tripRes.data) setTripInfo(tripRes.data);
-        if (receiptsRes.data) setReceipts(receiptsRes.data);
-      } catch (e) {
-        console.error("Error fetching trip details:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTrip();
   }, [session, id]);
 
-  if (loading || !tripInfo) {
+  useFocusEffect(
+    useCallback(() => {
+      fetchTripData();
+    }, [fetchTripData])
+  );
+
+  const { refreshing, onRefresh } = useRefresh(fetchTripData);
+
+  if ((loading && !refreshing) || (!tripInfo && !refreshing && !loading)) {
     return (
       <SafeAreaView className="flex-1 bg-surface items-center justify-center">
         <ActivityIndicator size="large" color="#630ED4" />
       </SafeAreaView>
     );
   }
+
+  if (!tripInfo && !refreshing) return null;
 
   const trip = tripInfo.TRIP;
   const locationStr = trip.TRIPLOCATIONS?.[0]?.city || 'Unknown Location';
@@ -239,7 +351,7 @@ export default function TripDetailsScreen() {
   const budget = Number(trip.budget) || 0;
   const remaining = budget - expenditure;
   const progress = budget > 0 ? Math.min(100, Math.max(0, (expenditure / budget) * 100)) : 0;
-  
+
   const mappedObjectives = (trip.TRIPOBJECTIVES || []).map((obj: any, idx: number) => ({
     title: obj.title,
     description: obj.description || '',
@@ -290,15 +402,18 @@ export default function TripDetailsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ReceiptDetailsModal 
-        visible={!!selectedReceipt} 
-        onClose={() => setSelectedReceipt(null)} 
-        receipt={selectedReceipt} 
+      <ReceiptDetailsModal
+        visible={!!selectedReceipt}
+        onClose={() => setSelectedReceipt(null)}
+        receipt={selectedReceipt}
+        onAppealSuccess={fetchTripData}
       />
 
       <ScrollView
+        className="flex-1 w-full"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 40, flexGrow: 1 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#630ED4" />}
       >
         {activeTab === 'details' ? (
           <View className="px-6">
@@ -326,14 +441,14 @@ export default function TripDetailsScreen() {
               progress={progress}
             />
 
-            {/* Lumina Insight */}
+            {/* AI Insight */}
             <View className="bg-surface-container rounded-[24px] p-5 mb-8 flex-row gap-4">
               <View className="w-10 h-10 rounded-full bg-primary items-center justify-center">
                 <MaterialIcons name="auto-awesome" size={20} color="white" />
               </View>
               <View className="flex-1">
                 <Text className="text-on-surface font-headline font-bold text-sm mb-2">
-                  Lumina Insight
+                  AI Insight
                 </Text>
                 <Text className="text-on-surface-variant font-body text-xs leading-relaxed">
                   You've spent{' '}
@@ -351,7 +466,7 @@ export default function TripDetailsScreen() {
             <FileUpload
               tripId={id as string}
               userId={session?.user?.id ?? ''}
-              onUploadSuccess={fetchReceipts}
+              onUploadSuccess={fetchTripData}
             />
 
             {/* Recent Receipts */}
@@ -391,9 +506,14 @@ export default function TripDetailsScreen() {
                           {formatDate(receipt.created_at) || 'No Date'}
                         </Text>
                       </View>
-                      <Text className="font-headline font-bold text-sm text-on-surface">
-                        {receipt.currency || '$'}{Number(receipt.amount || 0).toFixed(2)}
-                      </Text>
+                      <View className="flex-row items-center gap-2">
+                        {(receipt.status === 'rejected' || receipt.status === 'appealed') && (
+                          <MaterialIcons name="warning" size={16} color="#FFD700" />
+                        )}
+                        <Text className="font-headline font-bold text-sm text-on-surface">
+                          {receipt.currency || '$'}{Number(receipt.amount || 0).toFixed(2)}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   ))
                 ) : (

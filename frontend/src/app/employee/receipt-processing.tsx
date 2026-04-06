@@ -31,7 +31,7 @@ export default function ReceiptProcessingScreen() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(true);
-  const [decisionResult, setDecisionResult] = useState<{isApproved: boolean, reasons: string[]} | null>(null);
+  const [decisionResult, setDecisionResult] = useState<{ isApproved: boolean, reasons: string[] } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,7 +60,7 @@ export default function ReceiptProcessingScreen() {
         const window = [tripData?.startDate, tripData?.endDate];
 
         setCurrentStep(1); // Reading Document
-        
+
         const requestPayload = {
           image_url: url,
           user_image_description: userDescription || '',
@@ -75,14 +75,14 @@ export default function ReceiptProcessingScreen() {
         // Step 2 & 3: AI Processing
         setCurrentStep(2);
         const result = await processReceipt(requestPayload);
-        
+
         setCurrentStep(3); // Policy violation checks
         // Wait a small moment for UI to show step 3 before updating DB
         await new Promise(resolve => setTimeout(resolve, 500));
 
         // Step 4: Finalizing & DB Updates
         setCurrentStep(4);
-        
+
         // Update TRIP_RECEIPTS
         const { error: updateError } = await supabase
           .from('TRIP_RECEIPTS')
@@ -92,12 +92,13 @@ export default function ReceiptProcessingScreen() {
             amount: result.receipt_amount,
             currency: result.currency,
             receipt_date: result.receipt_date,
+            category: result.receipt_category,
             extracted_description: result.extracted_description,
             status: result.decision === 'approved' ? 'approved' : 'rejected',
             ai_reason: result.justification?.join('\n') || result.policy_violations?.join('\n'),
           })
           .eq('id', receiptId);
-          
+
         if (updateError) console.error("Error updating receipt", updateError);
 
         if (result.decision === 'approved' && result.receipt_amount) {
@@ -163,7 +164,7 @@ export default function ReceiptProcessingScreen() {
           <MaterialIcons name="close" size={24} color="#1D1A24" />
         </TouchableOpacity>
         <Text className="font-headline font-bold text-lg text-on-surface">
-          Lumina Intelligence
+          AI Intelligence
         </Text>
         <View className="w-10 h-10" />
       </View>
@@ -206,6 +207,7 @@ export default function ReceiptProcessingScreen() {
             <ReceiptDecision
               isApproved={decisionResult?.isApproved || false}
               reasons={decisionResult?.reasons || []}
+              receiptId={receiptId}
               onGoBack={handleGoBack}
             />
           )}

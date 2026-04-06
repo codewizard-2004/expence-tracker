@@ -6,11 +6,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { useRefresh } from '../../hooks/useRefresh';
+import { useFocusEffect } from 'expo-router';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -18,15 +20,13 @@ export default function ProfileScreen() {
   const { session, userProfile, signOut } = useAuth();
   const [expenseData, setExpenseData] = useState<any[]>([]);
   const [totalSpend, setTotalSpend] = useState<number>(0);
-  const [approvalStats, setApprovalStats] = useState({ total: 0, approvedRaw: 0, disapprovedRaw: 0 });
+  const [approvalStats, setApprovalStats] = useState({ total: 0, approvedRaw: 0, disapprovedRaw: 0, appealedRaw: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAnalytics = useCallback(async () => {
     if (!session?.user) return;
-
-    const fetchAnalytics = async () => {
-      try {
-        const { data: receipts, error } = await supabase
+    try {
+      const { data: receipts, error } = await supabase
           .from('TRIP_RECEIPTS')
           .select('*')
           .eq('user_id', session.user.id);
@@ -37,50 +37,63 @@ export default function ProfileScreen() {
         let foodAmount = 0;
         let travelAmount = 0;
         let accomAmount = 0;
+        let otherAmount = 0;
         
         let appCount = 0;
         let rejCount = 0;
+        let appealCount = 0;
 
         (receipts || []).forEach(r => {
           const amt = Number(r.amount) || 0;
           total += amt;
           
-          const cat = r.category?.toLowerCase();
-          if (cat === 'food') foodAmount += amt;
+          const cat = r.category?.toLowerCase() || '';
+          if (cat === 'meals') foodAmount += amt;
           else if (cat === 'travel') travelAmount += amt;
           else if (cat === 'accommodation') accomAmount += amt;
+          else otherAmount += amt;
           
           if (r.status === 'approved') appCount++;
           else if (r.status === 'rejected') rejCount++;
+          else if (r.status === 'appealed') appealCount++;
         });
 
         setTotalSpend(total);
         setApprovalStats({ 
           total: receipts?.length || 0, 
           approvedRaw: appCount, 
-          disapprovedRaw: rejCount 
+          disapprovedRaw: rejCount,
+          appealedRaw: appealCount
         });
 
         if (total > 0) {
-          setExpenseData([
-            { label: 'Travel', icon: 'flight', subtitle: 'Flights & Trains', amount: travelAmount, color: '#630ED4', pct: Math.round((travelAmount / total) * 100) },
-            { label: 'Meals', icon: 'restaurant', subtitle: 'Dining & Catering', amount: foodAmount, color: '#FE6A34', pct: Math.round((foodAmount / total) * 100) },
-            { label: 'Lodging', icon: 'hotel', subtitle: 'Hotel & Housing', amount: accomAmount, color: '#7b7487', pct: Math.round((accomAmount / total) * 100) },
-          ].sort((a, b) => b.amount - a.amount));
+          const rawData = [
+            { label: 'Travel', icon: 'flight', subtitle: 'Flights & Trains', amount: travelAmount, color: '#630ED4' },
+            { label: 'Meals', icon: 'restaurant', subtitle: 'Dining & Catering', amount: foodAmount, color: '#FE6A34' },
+            { label: 'Lodging', icon: 'hotel', subtitle: 'Hotel & Housing', amount: accomAmount, color: '#7b7487' },
+            { label: 'Other', icon: 'receipt', subtitle: 'Miscellaneous', amount: otherAmount, color: '#10B981' },
+          ].sort((a, b) => b.amount - a.amount).filter(d => d.amount > 0);
+          
+          setExpenseData(rawData.map(d => ({ ...d, pct: Math.round((d.amount / total) * 100) })));
         } else {
           setExpenseData([]);
         }
       } catch (e) {
-        console.error("Error fetching profile analytics:", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchAnalytics();
-  }, [session]);
+      console.error("Error fetching analytics:", e);
+    } finally {
+      if (loading) setLoading(false);
+    }
+  }, [session, loading]);
 
-  if (loading) {
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnalytics();
+    }, [fetchAnalytics])
+  );
+
+  const { refreshing, onRefresh } = useRefresh(fetchAnalytics);
+
+  if (loading && !refreshing) {
     return (
       <View className="flex-1 bg-surface items-center justify-center">
         <ActivityIndicator size="large" color="#630ED4" />
@@ -88,9 +101,10 @@ export default function ProfileScreen() {
     );
   }
 
-  const decidedCount = approvalStats.approvedRaw + approvalStats.disapprovedRaw;
+  const decidedCount = approvalStats.approvedRaw + approvalStats.disapprovedRaw + approvalStats.appealedRaw;
   const approvedPct = decidedCount > 0 ? Math.round((approvalStats.approvedRaw / decidedCount) * 100) : 0;
   const disapprovedPct = decidedCount > 0 ? Math.round((approvalStats.disapprovedRaw / decidedCount) * 100) : 0;
+  const appealedPct = decidedCount > 0 ? Math.round((approvalStats.appealedRaw / decidedCount) * 100) : 0;
 
   return (
     <View className="flex-1 bg-surface pt-8">
@@ -102,6 +116,7 @@ export default function ProfileScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 100, 140), paddingHorizontal: 24 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#630ED4" />}
       >
         {/* Profile Card */}
         <View className="items-center pt-4 mb-10">
@@ -180,7 +195,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Progress Bar */}
-          <ProgressBar approved={approvedPct} disapproved={disapprovedPct} />
+          <ProgressBar approved={approvedPct} disapproved={disapprovedPct} appealed={appealedPct} />
         </View>
 
         {/* Account Settings */}

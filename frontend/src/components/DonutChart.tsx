@@ -13,8 +13,10 @@ function DonutChart({ size = 180, strokeWidth = 28, EXPENSE_DATA, TOTAL_SPEND }:
     // Start from the top (-90deg rotation applied via G transform)
     const segments = EXPENSE_DATA.map((seg: any) => {
         const segLen = (seg.pct / 100) * circumference;
-        const gap = 4; // small gap between segments
-        const dash = `${segLen - gap} ${circumference - segLen + gap}`;
+        const gap = EXPENSE_DATA.length > 1 ? 4 : 0; // only gap if multiple segments
+        const dash1 = Math.max(0, segLen - gap);
+        const dash2 = Math.max(0, circumference - dash1);
+        const dash = `${dash1} ${dash2}`;
         const offset = -cumulativeOffset;
         cumulativeOffset += segLen;
         return { ...seg, dash, offset };
