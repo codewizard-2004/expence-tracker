@@ -81,6 +81,16 @@ const _layout = () => {
         }}
       />
       <Tabs.Screen
+        name="policy"
+        options={{
+          title: 'Policy',
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} text="Policy" iconName="description" />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="trip-details"
         options={{
           href: null,

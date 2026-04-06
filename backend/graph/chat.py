@@ -13,7 +13,7 @@ SYSTEM_PROMPT = (
     "Always be professional, concise, and helpful. "
     "If you cannot find the answer in the retrieved context, politely inform the user and suggest they contact HR."
     "If the question is not about policy ignore it"
-)
+) 
 
 # 2. Define the tools
 tools = [retrieve_context]

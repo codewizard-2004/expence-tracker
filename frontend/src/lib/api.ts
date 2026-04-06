@@ -10,7 +10,10 @@ export type PolicyChatRequest = {
 };
 
 export type PolicyChatResponse = {
-  response: string;
+  response: {
+    reply: string;
+    pages: number[];
+  };
   thread_id: string;
 };
 

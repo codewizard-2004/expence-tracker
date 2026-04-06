@@ -72,8 +72,16 @@ export default function AuditorChatScreen() {
       const botMessage: Message = {
         id: generateId(),
         type: 'bot',
-        text: response.response,
+        text: response.response.reply,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        compliance: response.response.pages.length > 0
+          ? {
+            title: 'Policy Reference',
+            policyRef: `Pages ${response.response.pages.join(', ')}`,
+            policyLabel: 'Source',
+            items: response.response.pages.map(p => `Page ${p}`),
+          }
+          : undefined,
       };
 
       setMessages((prev) => [...prev, botMessage]);
@@ -100,15 +108,20 @@ export default function AuditorChatScreen() {
       <TopNavigator mode='auditor' />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={'padding'}
         className="flex-1"
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
       >
         <ScrollView
           ref={scrollViewRef}
           className="flex-1"
-          contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 16 }}
+          contentContainerStyle={{
+            paddingBottom: 20,
+            paddingHorizontal: 16,
+            paddingTop: 10
+          }}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Welcome Section */}
           <View className="items-center pt-6 mb-8">
@@ -125,18 +138,9 @@ export default function AuditorChatScreen() {
 
           {/* Chat Messages */}
           <View className="gap-6">
-            {messages.map((msg) => {
-              if (msg.type === 'user') {
-                return (
-                  <UserMessage msg={msg} key={msg.id} />
-                );
-              }
-
-              // Bot message
-              return (
-                <BotMessage msg={msg} key={msg.id} />
-              );
-            })}
+            {messages.map((msg) => (
+              msg.type === 'user' ? <UserMessage msg={msg} key={msg.id} /> : <BotMessage msg={msg} key={msg.id} />
+            ))}
             {isLoading && (
               <View className="items-start">
                 <View className="bg-surface-container-low rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
@@ -149,18 +153,20 @@ export default function AuditorChatScreen() {
 
         {/* Input Section */}
         <View
-          className="px-4 pb-4 bg-surface"
-          style={{ paddingBottom: Math.max(insets.bottom + 70, 90) }}
+          className="px-4 bg-surface"
+          style={{
+            paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 100) : 100,
+            paddingTop: 8
+          }}
         >
           <View className="flex-row items-center bg-surface-container-highest/70 rounded-2xl shadow-lg overflow-hidden">
             <TextInput
-              className="flex-1 px-6 py-4 text-on-surface font-body text-sm"
+              className="flex-1 px-6 py-3 text-on-surface font-body text-sm max-h-32"
               placeholder="Ask a policy question..."
               placeholderTextColor="rgba(74, 68, 85, 0.6)"
               value={inputText}
               onChangeText={setInputText}
               multiline={true}
-              onSubmitEditing={handleSend}
             />
             <TouchableOpacity
               className="m-2 p-3 bg-primary-container rounded-xl items-center justify-center shadow-md"
@@ -169,7 +175,7 @@ export default function AuditorChatScreen() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color="#630ED4" />
               ) : (
                 <MaterialIcons name="send" size={20} color="white" />
               )}
