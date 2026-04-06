@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ReceiptDecision from '@/components/ReceiptDecision';
 import VerticalStepper from '@/components/VerticalStepper';
+import { supabase } from '@/lib/supabase';
+import { processReceipt } from '@/lib/receiptApi';
 
 const PROCESSING_STEPS = [
   'Extracting the document',
@@ -18,27 +20,135 @@ const PROCESSING_STEPS = [
 
 export default function ReceiptProcessingScreen() {
   const router = useRouter();
-  const { file, url } = useLocalSearchParams<{ file?: string; url?: string }>();
-
-  useEffect(() => {
-    if (url) {
-      console.log('Processing receipt at URL:', url);
-    }
-  }, [url]);
+  const { file, url, tripId, userId, receiptId, userDescription } = useLocalSearchParams<{
+    file?: string;
+    url?: string;
+    tripId?: string;
+    userId?: string;
+    receiptId?: string;
+    userDescription?: string;
+  }>();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(true);
+  const [decisionResult, setDecisionResult] = useState<{isApproved: boolean, reasons: string[]} | null>(null);
 
   useEffect(() => {
-    if (currentStep < PROCESSING_STEPS.length) {
-      const timer = setTimeout(() => {
-        setCurrentStep((prev) => prev + 1);
-      }, 1500); // Wait 1.5s per simulated step
-      return () => clearTimeout(timer);
-    } else {
-      setIsProcessing(false);
-    }
-  }, [currentStep]);
+    let isMounted = true;
+
+    const runProcessing = async () => {
+      if (!url || !tripId || !userId || !receiptId) {
+        if (isMounted) setIsProcessing(false);
+        return;
+      }
+
+      try {
+        // Step 1: Getting trip data
+        setCurrentStep(0);
+        const { data: tripData, error: tripError } = await supabase
+          .from('TRIP')
+          .select(`
+            *,
+            TRIPLOCATIONS ( city, country )
+          `)
+          .eq('id', tripId)
+          .single();
+
+        if (tripError) throw tripError;
+
+        const locations = tripData?.TRIPLOCATIONS?.map((loc: any) => `${loc.city}, ${loc.country}`) || [];
+        const window = [tripData?.startDate, tripData?.endDate];
+
+        setCurrentStep(1); // Reading Document
+        
+        const requestPayload = {
+          image_url: url,
+          user_image_description: userDescription || '',
+          trip_metadata: {
+            locations: locations,
+            window: window as string[],
+            budget_limit: `${tripData?.budget || 0} ${tripData?.currency || 'USD'}`,
+            description: tripData?.description || ''
+          }
+        };
+
+        // Step 2 & 3: AI Processing
+        setCurrentStep(2);
+        const result = await processReceipt(requestPayload);
+        
+        setCurrentStep(3); // Policy violation checks
+        // Wait a small moment for UI to show step 3 before updating DB
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Step 4: Finalizing & DB Updates
+        setCurrentStep(4);
+        
+        // Update TRIP_RECEIPTS
+        const { error: updateError } = await supabase
+          .from('TRIP_RECEIPTS')
+          .update({
+            merchant_name: result.merchant_name,
+            merchant_location: result.merchant_location,
+            amount: result.receipt_amount,
+            currency: result.currency,
+            receipt_date: result.receipt_date,
+            extracted_description: result.extracted_description,
+            status: result.decision === 'approved' ? 'approved' : 'rejected',
+            ai_reason: result.justification?.join('\n') || result.policy_violations?.join('\n'),
+          })
+          .eq('id', receiptId);
+          
+        if (updateError) console.error("Error updating receipt", updateError);
+
+        if (result.decision === 'approved' && result.receipt_amount) {
+          // Increment expenditure
+          const { data: userTrip, error: utError } = await supabase
+            .from('USERTRIPS')
+            .select('expenditure')
+            .eq('user_id', userId)
+            .eq('trip_id', tripId)
+            .single();
+
+          if (!utError && userTrip) {
+            const currentExp = Number(userTrip.expenditure) || 0;
+            const newExp = currentExp + Number(result.receipt_amount);
+            await supabase
+              .from('USERTRIPS')
+              .update({ expenditure: newExp })
+              .eq('user_id', userId)
+              .eq('trip_id', tripId);
+          }
+        }
+
+        if (isMounted) {
+          setDecisionResult({
+            isApproved: result.decision === 'approved',
+            reasons: result.decision === 'approved' ? [] : (result.justification || result.policy_violations || [])
+          });
+          setIsProcessing(false);
+        }
+
+      } catch (error) {
+        console.error("Processing failed:", error);
+        if (isMounted) {
+          setDecisionResult({
+            isApproved: false,
+            reasons: ['An error occurred during receipt processing. Please try again.']
+          });
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    runProcessing();
+
+    return () => { isMounted = false; };
+  }, [url, tripId, userId, receiptId, userDescription]);
+
+  // Use string navigation for push
+  const handleGoBack = () => {
+    router.replace(`/employee/trip-details?id=${tripId}`);
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-surface">
@@ -64,7 +174,7 @@ export default function ReceiptProcessingScreen() {
       >
         <View className="px-6 flex-1 mt-4">
           {file && (
-            <View 
+            <View
               className="flex-row items-center bg-surface-container rounded-2xl p-4 mb-8 border"
               style={{
                 borderColor: 'rgba(204, 195, 216, 0.1)',
@@ -75,7 +185,7 @@ export default function ReceiptProcessingScreen() {
                 elevation: 2,
               }}
             >
-              <View 
+              <View
                 className="w-10 h-10 rounded-xl items-center justify-center -ml-1"
                 style={{ backgroundColor: 'rgba(99, 14, 212, 0.1)' }}
               >
@@ -94,12 +204,9 @@ export default function ReceiptProcessingScreen() {
             <VerticalStepper steps={PROCESSING_STEPS} currentStepIndex={currentStep} />
           ) : (
             <ReceiptDecision
-              isApproved={false}
-              reasons={[
-                'Exceeded daily per diem for meals by 35% ($245.00 vs $180.00 allowed).',
-                'Receipt is missing the required vendor tax ID.',
-              ]}
-              onGoBack={() => router.back()}
+              isApproved={decisionResult?.isApproved || false}
+              reasons={decisionResult?.reasons || []}
+              onGoBack={handleGoBack}
             />
           )}
         </View>

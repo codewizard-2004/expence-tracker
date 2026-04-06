@@ -8,7 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState, useEffect } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, Modal, Linking } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -22,6 +23,137 @@ const getCategoryIcon = (category: string) => {
   }
 };
 
+const formatDate = (dateString: string) => {
+  if (!dateString) return '';
+  try {
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateString;
+  }
+};
+
+// ─── Receipt Details Modal ───────────────────────────────────────────────────────
+const ReceiptDetailsModal = ({ visible, onClose, receipt }: any) => {
+  if (!receipt) return null;
+
+  const isApproved = receipt.status === 'approved';
+  const isRejected = receipt.status === 'rejected';
+  const isPending  = !receipt.status;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View className="flex-1 justify-end bg-[#1D1A24]/60">
+        <View className="bg-surface rounded-t-[32px] p-6 max-h-[90%]">
+          {/* Header */}
+          <View className="flex-row justify-between items-center mb-6">
+            <Text className="font-headline font-bold text-xl text-on-surface tracking-tight">
+              Receipt Details
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={onClose}
+              className="p-2 bg-surface-container-high rounded-full"
+            >
+              <MaterialIcons name="close" size={20} color="#4A4455" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* Receipt Image */}
+            <View className="w-full h-52 bg-surface-container-high rounded-2xl mb-6 overflow-hidden border border-outline-variant/20 relative">
+              {receipt.url ? (
+                <>
+                  <Image
+                    source={{ uri: receipt.url }}
+                    style={{ width: '100%', height: '100%' } as any}
+                    contentFit="contain"
+                  />
+                  <TouchableOpacity 
+                    className="absolute bottom-3 right-3 bg-black/60 p-2 rounded-xl"
+                    onPress={() => Linking.openURL(receipt.url)}
+                  >
+                    <MaterialIcons name="open-in-new" size={20} color="white" />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View className="flex-1 items-center justify-center gap-2">
+                  <MaterialIcons name="receipt-long" size={48} color="#7b748780" />
+                  <Text className="text-on-surface-variant font-body text-sm">
+                    No image attached
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* AI Decision Block / Details Block */}
+            <View className="bg-surface-container border border-outline-variant/20 rounded-2xl p-5 mb-6">
+              <Text className="font-headline font-bold text-lg text-on-surface mb-4 border-b border-outline-variant/20 pb-2">
+                Processed Details
+              </Text>
+              
+              <View className="gap-y-3">
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Merchant</Text>
+                  <Text className="text-on-surface font-body font-semibold text-sm max-w-[60%] text-right">{receipt.merchant_name || 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Location</Text>
+                  <Text className="text-on-surface font-body font-semibold text-sm max-w-[60%] text-right">{receipt.merchant_location || 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Category</Text>
+                  <Text className="text-on-surface font-body font-semibold text-sm capitalize">{receipt.category || 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Receipt Date</Text>
+                  <Text className="text-on-surface font-body font-semibold text-sm">{receipt.receipt_date ? formatDate(receipt.receipt_date) : 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Upload Date</Text>
+                  <Text className="text-on-surface font-body font-semibold text-sm">{receipt.created_at ? formatDate(receipt.created_at) : 'N/A'}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Amount</Text>
+                  <Text className="text-on-surface font-body font-bold text-sm">{receipt.currency || ''}{receipt.amount != null ? Number(receipt.amount).toFixed(2) : '—'}</Text>
+                </View>
+                
+                {/* Status and reason block */}
+                <View className={`mt-2 p-3 border rounded-xl ${isApproved ? 'bg-primary/10 border-primary/20' : isRejected ? 'bg-[#BA1A1A]/10 border-[#BA1A1A]/30' : 'bg-surface-container-high border-outline-variant/30'}`}>
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-on-surface-variant font-label text-xs uppercase tracking-wider">Status</Text>
+                    <Text className={`font-headline font-bold text-sm uppercase ${isApproved ? 'text-primary' : isRejected ? 'text-[#BA1A1A]' : 'text-on-surface-variant'}`}>
+                      {receipt.status || 'PENDING'}
+                    </Text>
+                  </View>
+                  {receipt.ai_reason && (
+                    <View className="mt-2 pt-2 border-t border-black/5">
+                      <Text className="text-on-surface-variant font-label text-[10px] uppercase tracking-wider mb-1">AI Reasoning</Text>
+                      <Text className="text-on-surface font-body text-sm leading-relaxed">{receipt.ai_reason}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={onClose}
+              className="bg-surface-container-highest py-4 rounded-full items-center justify-center shadow-sm"
+            >
+              <Text className="text-on-surface font-headline font-bold text-base">Close</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function TripDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +162,7 @@ export default function TripDetailsScreen() {
   const [tripInfo, setTripInfo] = useState<any>(null);
   const [receipts, setReceipts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
 
   const fetchReceipts = async () => {
     if (!session?.user || !id) return;
@@ -90,20 +223,6 @@ export default function TripDetailsScreen() {
     };
     fetchTrip();
   }, [session, id]);
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    try {
-      const parts = dateString.split('-');
-      if (parts.length === 3) {
-        const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      }
-      return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } catch {
-      return dateString;
-    }
-  };
 
   if (loading || !tripInfo) {
     return (
@@ -171,6 +290,12 @@ export default function TripDetailsScreen() {
         </TouchableOpacity>
       </View>
 
+      <ReceiptDetailsModal 
+        visible={!!selectedReceipt} 
+        onClose={() => setSelectedReceipt(null)} 
+        receipt={selectedReceipt} 
+      />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -184,6 +309,8 @@ export default function TripDetailsScreen() {
               location={locationStr}
               dateStart={formatDate(trip.startDate)}
               dateEnd={formatDate(trip.endDate)}
+              budget={budget}
+              expenditure={expenditure}
             />
 
             {/* Trip Purpose */}
@@ -242,10 +369,11 @@ export default function TripDetailsScreen() {
 
               <View className="gap-3">
                 {receipts.length > 0 ? (
-                  receipts.map((receipt, index) => (
+                  receipts.map((receipt: any, index: number) => (
                     <TouchableOpacity
                       key={receipt.id || index}
                       activeOpacity={0.8}
+                      onPress={() => setSelectedReceipt(receipt)}
                       className="flex-row items-center bg-surface-container-low rounded-2xl p-4 gap-4"
                     >
                       <View className="w-10 h-10 rounded-xl bg-primary-fixed items-center justify-center">

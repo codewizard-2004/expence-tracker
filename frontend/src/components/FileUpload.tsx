@@ -121,7 +121,7 @@ const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
       const receiptUrl = publicUrlData?.publicUrl ?? null;
 
       // 4. Insert into TRIP_RECEIPTS — AI-generated columns are NULL for now
-      const { error: dbError } = await supabase
+      const { data: insertedData, error: dbError } = await supabase
         .from('TRIP_RECEIPTS')
         .insert({
           trip_id: tripId,
@@ -138,7 +138,9 @@ const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
           extracted_description: null,
           status: null,
           ai_reason: null,
-        });
+        })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
 
@@ -149,7 +151,11 @@ const FileUpload = ({ tripId, userId, onUploadSuccess }: FileUploadProps) => {
         pathname: '/employee/receipt-processing',
         params: {
           file: selectedFile.name,
-          url: receiptUrl ?? ''
+          url: receiptUrl ?? '',
+          tripId: tripId,
+          userId: userId,
+          receiptId: insertedData.id,
+          userDescription: userDescription,
         }
       });
 

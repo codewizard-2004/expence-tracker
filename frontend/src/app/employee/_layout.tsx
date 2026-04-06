@@ -98,15 +98,24 @@ const _layout = () => {
           headerShown: false,
         }}
       />
-      <Tabs.Screen
-        name="receipt-processing"
-        options={{
-          href: null,
-          title: 'Processing...',
-          headerShown: false,
-          tabBarStyle: { display: 'none' }
-        }}
-      />
+       <Tabs.Screen
+         name="receipt-processing"
+         options={{
+           href: null,
+           title: 'Processing...',
+           headerShown: false,
+           tabBarStyle: { display: 'none' }
+         }}
+       />
+       <Tabs.Screen
+         name="receipt-decision"
+         options={{
+           href: null,
+           title: 'Decision',
+           headerShown: false,
+           tabBarStyle: { display: 'none' }
+         }}
+       />
     </Tabs>
   );
 };

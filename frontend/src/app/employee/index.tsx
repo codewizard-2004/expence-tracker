@@ -6,8 +6,9 @@ import TotalSpendCard from '@/components/TotalSpendCard';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -18,8 +19,8 @@ export default function EmployeeHomeScreen() {
   const { session } = useAuth();
   const [trips, setTrips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+  useFocusEffect(
+    useCallback(() => {
     if (!session?.user) return;
 
     const fetchTrips = async () => {
@@ -44,7 +45,7 @@ export default function EmployeeHomeScreen() {
       }
     };
     fetchTrips();
-  }, [session]);
+  }, [session]));
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -79,7 +80,11 @@ export default function EmployeeHomeScreen() {
               </Text>
             </View>
 
-            <TotalSpendCard amount={12450.80} currency="$" percentageChange={4.2} />
+            <TotalSpendCard 
+              amount={trips.reduce((sum, trip) => sum + (Number(trip.expenditure) || 0), 0)} 
+              currency="$" 
+              percentageChange={4.2} 
+            />
           </View>
 
           {/* Active Trips Header */}

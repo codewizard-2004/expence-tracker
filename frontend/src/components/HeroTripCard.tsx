@@ -10,9 +10,15 @@ type HeroTripProps = {
     location: string;
     dateStart: string;
     dateEnd: string;
+    budget?: number;
+    expenditure?: number;
 }
 
-const HeroTripCard = ({ image, title, location, dateStart, dateEnd }: HeroTripProps) => {
+const HeroTripCard = ({ image, title, location, dateStart, dateEnd, budget, expenditure }: HeroTripProps) => {
+    const progress = (budget && budget > 0 && expenditure !== undefined) ? Math.min(100, Math.max(0, (expenditure / budget) * 100)) : 0;
+    const isOverBudget = progress > 100;
+    const isNearingBudget = progress > 85;
+
     return (
         <View
             className="relative rounded-[24px] overflow-hidden mb-8"
@@ -47,6 +53,20 @@ const HeroTripCard = ({ image, title, location, dateStart, dateEnd }: HeroTripPr
                         </Text>
                     </View>
                 </View>
+
+                {budget !== undefined && budget > 0 && expenditure !== undefined && (
+                    <View className="w-full mt-6 items-center px-4">
+                        <View className="h-[6px] w-[200px] rounded-full bg-white/20 overflow-hidden">
+                            <View 
+                                className="h-full rounded-full" 
+                                style={{ 
+                                    backgroundColor: isOverBudget ? '#FE6A34' : isNearingBudget ? '#FFB300' : '#14F195',
+                                    width: `${Math.min(100, progress)}%` 
+                                }} 
+                            />
+                        </View>
+                    </View>
+                )}
             </View>
         </View>
     )
