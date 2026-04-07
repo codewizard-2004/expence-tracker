@@ -97,7 +97,7 @@ If signup failed due to supabase rate limiting or other factors:
 
 * For more details on [Backend](backend/README.md)
 * For more details on [Frontend](frontend/README.md)
-* Backend is hosted at [here](https://expence-tracker-uc5w.onrender.com/health)
+* Backend is hosted at [here](https://expence-tracker-uc5w.onrender.com/api/health)
 
 ### Screenshots
 <div style="display: flex; flex-wrap: wrap; gap: 10px;">
