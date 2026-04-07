@@ -6,6 +6,16 @@ Managing and auditing travel expenses is a tedious and manual process for both e
 ## The Solution
 The Macrosoft Expense Tracker is a hybrid mobile application and intelligent backend system that automates the expense reporting and auditing process. Employees can snap photos of their receipts or upload them to the app, which automatically synchronizes with a cloud database. An AI-powered auditor uses an advanced LangGraph agent and vision models to parse the receipts, verify their authenticity, detect potential fraud, and instantly evaluate them against company policies. This allows for near real-time automated approvals or itemized feedback for policy violations, reducing the auditor's workload and enhancing visibility into company spending.
 
+## Features
+* **Automated Receipt Parsing:** Uses advanced AI vision models to extract structured data from physical and digital receipts.
+* **Policy Compliance Checking:** Validates receipts against company policies using a vector database (RAG) to ensure adherence.
+* **Fraud Detection:** Checks for vendor authenticity, location proximity, and transaction date validity.
+* **Dual Roles:** Dedicated interfaces for Employees (submitting expenses) and Auditors (reviewing and approving).
+* **Interactive AI Assistant:** A chat-based interface to explain policy violations and provide context-aware assistance.
+* **Policy Document Viewer:** A feature to view the policy documents in a structured format.
+* **Dashboard and Analytics:** A dashboard to view the analytics of the expenses and the policy violations.
+* **Trip Management:** A feature to manage the trips and the expenses associated with each trip.
+
 ## The Langgraph System 
 ![graph](frontend/assets/images/screenshots/graph.png)
 
@@ -101,18 +111,9 @@ If signup failed due to supabase rate limiting or other factors:
    <img src="frontend/assets/images/screenshots/trip-details.jpeg" alt="trip-details" height=300>
    <img src="frontend/assets/images/screenshots/receipt-details.jpeg" alt="receipt-details" height=300>
    <img src="frontend/assets/images/screenshots/receipt-details2.jpeg" alt="receipt-details2" height=300>
-   <img src="frontend/assets/images/screenshots/signup.jpeg" alt="home" height=300>
+   <img src="frontend/assets/images/screenshots/signup.jpeg" alt="create-account" height=300>
+   <img src="frontend/assets/images/screenshots/new-trip.jpeg" alt="new-trip" height=300>
 </div>
-
-## Features
-* **Automated Receipt Parsing:** Uses advanced AI vision models to extract structured data from physical and digital receipts.
-* **Policy Compliance Checking:** Validates receipts against company policies using a vector database (RAG) to ensure adherence.
-* **Fraud Detection:** Checks for vendor authenticity, location proximity, and transaction date validity.
-* **Dual Roles:** Dedicated interfaces for Employees (submitting expenses) and Auditors (reviewing and approving).
-* **Interactive AI Assistant:** A chat-based interface to explain policy violations and provide context-aware assistance.
-* **Policy Document Viewer:** A feature to view the policy documents in a structured format.
-* **Dashboard and Analytics:** A dashboard to view the analytics of the expenses and the policy violations.
-* **Trip Management:** A feature to manage the trips and the expenses associated with each trip.
 
 ## Advantages
 * **Time Savings:** Drastically reduces the time spent on manual data entry and receipt cross-referencing.

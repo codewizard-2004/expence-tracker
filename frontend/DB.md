@@ -49,6 +49,7 @@ CREATE TABLE public.USERS (
   id uuid NOT NULL,
   name text,
   gender varchar (M, F, O),
+  email text not null,
   rank text, # L1, L2 , L3 etc upto L10
   type text, #Employee, Auditor
   logo text

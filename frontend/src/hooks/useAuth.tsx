@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', userId)
         .single();
-      
+
       if (!error && data) {
         setRole(data.type as Role);
         setUserProfile(data);
@@ -78,22 +78,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string, expectedRole?: string): Promise<{ error: Error | null; role: Role }> => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error, role: null };
-    
+
     try {
       const { data: userData, error: userError } = await supabase
         .from('USERS')
         .select('*')
         .eq('id', data.user.id)
         .single();
-        
+
       if (!userError && userData) {
         const userRole = userData.type as Role;
-        
+
         if (expectedRole && userRole?.toLowerCase() !== expectedRole.toLowerCase()) {
           await supabase.auth.signOut();
           return { error: new Error(`This account is not registered as an ${expectedRole}.`), role: null };
         }
-        
+
         setRole(userRole);
         setUserProfile(userData);
         return { error: null, role: userRole };
@@ -105,18 +105,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (
-    email: string, 
-    password: string, 
+    email: string,
+    password: string,
     additionalData: { name: string, gender: string, rank: string, type: string, logo: string }
   ): Promise<{ error: Error | null; role: Role }> => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error, role: null };
-    
+
     if (data.user) {
       try {
+        const resolvedEmail = data.user.email ?? email;
+        console.log('[signUp] Inserting user:', { id: data.user.id, email: resolvedEmail });
         const { error: insertError } = await supabase.from('USERS').insert([
           {
             id: data.user.id,
+            email: resolvedEmail,
             name: additionalData.name,
             gender: additionalData.gender,
             rank: additionalData.rank,
@@ -124,11 +127,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logo: additionalData.logo,
           }
         ]);
-        
+
         if (insertError) {
-           return { error: new Error(insertError.message), role: null };
+          return { error: new Error(insertError.message), role: null };
         }
-        
+
         const userRole = additionalData.type as Role;
         setRole(userRole);
         setUserProfile({ id: data.user.id, ...additionalData });
