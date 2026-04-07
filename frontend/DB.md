@@ -48,7 +48,7 @@ CREATE TABLE public.TRIP_RECEIPTS (
 CREATE TABLE public.USERS (
   id uuid NOT NULL,
   name text,
-  email text,
+  gender varchar (M, F, O),
   rank text, # L1, L2 , L3 etc upto L10
   type text, #Employee, Auditor
   logo text

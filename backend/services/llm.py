@@ -1,13 +1,11 @@
 import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openrouter import ChatOpenRouter
 from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
 google_api = os.getenv("GEMINI_API_KEY")
-open_router_api = os.getenv("OPENROUTER_API")
 openai_api = os.getenv("OPENAI_API_KEY")
 
 # Primary LLM — Gemini 2.5 Flash (vision + structured output for extraction/authenticity/decision)

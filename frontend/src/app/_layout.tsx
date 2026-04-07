@@ -14,7 +14,7 @@ function InitialLayout() {
     if (!initialized) return;
 
     const segment = segments[0] as string | undefined;
-    const inAuthScreen = !segment || segment === 'sign-in' || segment === 'index';
+    const inAuthScreen = !segment || segment === 'sign-in' || segment === 'sign-up' || segment === 'index';
 
     if (!session) {
       if (!inAuthScreen) {

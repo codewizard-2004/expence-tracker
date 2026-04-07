@@ -6,7 +6,7 @@
 
 ```
 GEMINI_API_KEY=your_gemini_api_key_here
-OPENROUTER_API=your_openrouter_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
 ```
 
@@ -61,6 +61,37 @@ Health check. Returns `{"status": "ok"}`.
   "auth_violations": [],
   "is_policy_violating": false,
   "policy_violations": [],
-  "justification": []
 }
 ```
+
+### `POST /api/policy-chat`
+
+**Body (JSON):**
+```json
+{
+  "message": "What is the daily meal allowance for New York?",
+  "thread_id": "unique-session-id-123"
+}
+```
+
+**Response:**
+```json
+{
+  "response": {
+    "reply": "The daily meal allowance for New York is 75 USD.",
+    "pages": [12, 14]
+  },
+  "thread_id": "unique-session-id-123"
+}
+```
+
+## Backend Architecture
+
+The backend is a robust FastAPI application serving as the orchestration layer for the AI Auditor. It utilizes a LangGraph workflow to process and evaluate receipts against company policies intelligently.
+
+### Core Components
+* **FastAPI:** Provides a high-performance RESTful API to communicate with the frontend application.
+* **LangGraph:** Manages the stateful workflow of receipt processing, routing the data through various intelligent nodes: extraction, authentication, validation, and policy checking.
+* **Vision Models (Gemini):** Used to perform OCR and extract structured tabular data from receipt images uploaded by users.
+* **Authentication & Validation:** Integrates with Tavily Search to cross-reference merchant locations and checks currency/date logic to prevent fraudulent claims.
+* **RAG System (Chroma):** Employs a Retrieval-Augmented Generation approach to retrieve relevant company expense policies from a local vector database, ensuring accurate, up-to-date, and context-aware compliance checks.

@@ -11,6 +11,7 @@ interface AuthProps {
   userProfile: any | null;
   initialized: boolean;
   signIn: (email: string, password: string, expectedRole?: string) => Promise<{ error: Error | null; role: Role }>;
+  signUp: (email: string, password: string, additionalData: { name: string, gender: string, rank: string, type: string, logo: string }) => Promise<{ error: Error | null; role: Role }>;
   signOut: () => Promise<void>;
 }
 
@@ -103,6 +104,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null, role: null };
   };
 
+  const signUp = async (
+    email: string, 
+    password: string, 
+    additionalData: { name: string, gender: string, rank: string, type: string, logo: string }
+  ): Promise<{ error: Error | null; role: Role }> => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { error, role: null };
+    
+    if (data.user) {
+      try {
+        const { error: insertError } = await supabase.from('USERS').insert([
+          {
+            id: data.user.id,
+            name: additionalData.name,
+            gender: additionalData.gender,
+            rank: additionalData.rank,
+            type: additionalData.type,
+            logo: additionalData.logo,
+          }
+        ]);
+        
+        if (insertError) {
+           return { error: new Error(insertError.message), role: null };
+        }
+        
+        const userRole = additionalData.type as Role;
+        setRole(userRole);
+        setUserProfile({ id: data.user.id, ...additionalData });
+        return { error: null, role: userRole };
+      } catch (e) {
+        console.error(e);
+        return { error: e as Error, role: null };
+      }
+    }
+    return { error: new Error('User creation failed'), role: null };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -114,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userProfile,
     initialized,
     signIn,
+    signUp,
     signOut,
   };
 

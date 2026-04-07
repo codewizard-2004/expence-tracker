@@ -30,7 +30,7 @@ export default function SignInScreen() {
     setLoading(true);
     const { error, role: userRole } = await signIn(email, password, role);
     setLoading(false);
-    
+
     if (error) {
       Alert.alert('Sign In Error', error.message);
     } else if (!userRole) {
@@ -184,8 +184,8 @@ export default function SignInScreen() {
 
             {/* Button */}
             <View className="pt-4">
-              <TouchableOpacity 
-                className="shadow-xl rounded-xl overflow-hidden" 
+              <TouchableOpacity
+                className="shadow-xl rounded-xl overflow-hidden"
                 onPress={handleSignIn}
                 disabled={loading}
               >
@@ -206,6 +206,14 @@ export default function SignInScreen() {
                     </>
                   )}
                 </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* Sign Up Link */}
+            <View className="mt-2 mb-4 flex-row justify-center">
+              <Text className="text-on-surface-variant font-medium">Don't have an account? </Text>
+              <TouchableOpacity onPress={() => router.push('/sign-up')}>
+                <Text className="text-primary font-bold">Sign Up</Text>
               </TouchableOpacity>
             </View>
           </View>

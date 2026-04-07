@@ -1,8 +1,23 @@
-# Welcome to your Expo app 👋
+# Macrosoft Expense Tracker — Frontend
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+The frontend is a hybrid mobile application built with React Native (Expo) designed to provide a seamless and premium experience for both employees and auditors managing travel expenses.
 
-## Get started
+## Design System: "The Intelligent Ledger"
+
+Our UI strategy, "The Intelligent Ledger," acts as a sophisticated digital curator, providing a high-end editorial feel that departs from traditional corporate tools.
+
+### Core Aesthetics
+* **Colors:** Focuses on a high-contrast relationship between deep amethyst (`#630ED4`) to represent AI intelligence and energetic orange (`#AB3500`) for action and momentum.
+* **Typography:** Utilizes a dual-typeface system with geometrical **Manrope** for authoritative headlines and **Inter** for highly legible data and transactions.
+* **Elevation & Depth:** Follows "The Layering Principle" — relying on tonal shifts (surface nesting) and diffused ambient shadows rather than pure drop shadows to create depth. Pure black shadows are forbidden; instead, diffused tints of background elements provide lift.
+* **Components:** Components prioritize "Breathing Space" with asymmetrical layouts. Broad, rounded elements (`1.5rem` radius) convey approachability, while ghost-style input fields maintain a premium, uncluttered look. 1px borders are generally avoided in favor of tonal background contrasts.
+
+## Tech Stack
+* **Framework:** React Native with Expo (File-based routing).
+* **Styling:** NativeWind (TailwindCSS) configured to strictly adhere to our Intelligent Ledger tokens.
+* **Backend Integration:** Connects seamlessly to our custom FastAPI service and Supabase for real-time data synchronization.
+
+## Setup Instructions
 
 1. Install dependencies
 
@@ -10,47 +25,19 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Configure Environment Variables
+   
+   Create a `.env` file in the root of the `frontend` directory:
+   ```bash
+   EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   EXPO_PUBLIC_API_URL=http://localhost:8000
+   ```
+
+3. Start the app
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+In the output, you'll find options to open the app in a development build, Android emulator, iOS simulator, or via Expo Go.
