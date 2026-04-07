@@ -74,7 +74,7 @@ The Macrosoft Expense Tracker is a hybrid mobile application and intelligent bac
    ```bash
    EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   EXPO_PUBLIC_API_URL=http://localhost:8000  # Or your backend's local IP address
+   EXPO_PUBLIC_API_URL=http://localhost:8000  # Or your backend's local IP address eg) http://10.168.62.237:8000 (we do this if expo native is running in another phone)
    ```
 3. Install the necessary dependencies via npm:
    ```bash

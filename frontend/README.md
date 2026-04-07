@@ -31,7 +31,7 @@ Our UI strategy, "The Intelligent Ledger," acts as a sophisticated digital curat
    ```bash
    EXPO_PUBLIC_SUPABASE_URL=your_supabase_project_url
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   EXPO_PUBLIC_API_URL=http://localhost:8000
+   EXPO_PUBLIC_API_URL=http://localhost:8000 or ip address of backend server
    ```
 
 3. Start the app
