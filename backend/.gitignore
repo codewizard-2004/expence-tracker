@@ -1,2 +1,7 @@
 .env
 rag/.env
+__pycache__/
+api/__pycache__/
+nodes/__pycache__/
+graph/__pycache__/
+rag/__pycache__/

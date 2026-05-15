@@ -10,7 +10,7 @@ type VerticalStepperProps = {
 const VerticalStepper = ({ steps, currentStepIndex }: VerticalStepperProps) => {
   return (
     <View 
-      className="bg-surface-container-low rounded-[24px] p-6 border w-full mb-6"
+      className="flex-1 bg-surface-container-low rounded-[24px] p-6 border w-full mb-6"
       style={{
         borderColor: 'rgba(204, 195, 216, 0.1)',
         shadowColor: '#000',
@@ -24,16 +24,14 @@ const VerticalStepper = ({ steps, currentStepIndex }: VerticalStepperProps) => {
         Processing Receipt...
       </Text>
       
-      <View className="relative">
-        <View className="absolute left-[15px] top-4 bottom-4 w-0.5" style={{ backgroundColor: 'rgba(204, 195, 216, 0.3)' }} />
-
+      <View className="flex-1">
         {steps.map((step, index) => {
           const isActive = index === currentStepIndex;
           const isCompleted = index < currentStepIndex;
-          const isPending = index > currentStepIndex;
+          const isLast = index === steps.length - 1;
 
           return (
-            <View key={index} className="flex-row items-start mb-8 last:mb-0 relative z-10">
+            <View key={index} className={`flex-row ${isLast ? '' : 'flex-1'}`}>
               <View className="items-center mr-4">
                 {isCompleted ? (
                   <View className="w-8 h-8 rounded-full bg-[#7C3AED] items-center justify-center border-[3px] border-surface-container-low">
@@ -63,8 +61,11 @@ const VerticalStepper = ({ steps, currentStepIndex }: VerticalStepperProps) => {
                   </View>
                 )}
                 
-                {index < steps.length - 1 && isCompleted && (
-                  <View className="absolute top-[30px] left-1/2 ml-[-1px] w-0.5 h-[36px] bg-[#7C3AED]" />
+                {!isLast && (
+                  <View 
+                    className="w-0.5 flex-1 my-1" 
+                    style={{ backgroundColor: isCompleted ? '#7C3AED' : 'rgba(204, 195, 216, 0.3)' }} 
+                  />
                 )}
               </View>
 

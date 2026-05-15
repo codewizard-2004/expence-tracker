@@ -3,6 +3,7 @@ import { StyleSheet, View, ActivityIndicator, Platform, SafeAreaView, Text } fro
 import { WebView } from 'react-native-webview';
 // Import your configured supabase client
 import { supabase } from '@/lib/supabase';
+import TopNavigator from '@/components/TopNavigator';
 
 // Constants for your Supabase setup
 const BUCKET_NAME = 'policy'; // Change to your actual bucket name
@@ -27,7 +28,7 @@ export default function TravelPolicyScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header section (optional) */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Company Travel Policy</Text>
+        <TopNavigator mode='auditor' />
       </View>
 
       <View style={styles.webviewContainer}>
